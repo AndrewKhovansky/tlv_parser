@@ -106,6 +106,8 @@ int readByteFromHexFile(FILE* fp, uint8_t* out)
 }
 
 
+static uint8_t* ParseBuffer;
+
 int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 {
 
@@ -116,25 +118,49 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	int err;
 	uint8_t tmp;
 
-	uint64_t bytesParsed;
+	static uint64_t bytesParsed;
+
+	buf = ParseBuffer;
+
+
+	if(bytesParsed >= size)
+	{
+		*pBytesParsed = (uint32_t)bytesParsed;
+		return 0;
+	}
+
+	//static uint64_t totalBytesParsed;
 
 
 	//uint8_t end[2];
 
+	/*if(size == 0)
+	{
+		*pBytesParsed = 0;
+		return 0;
+	}*/
 
-	if(tlv->parent != NULL)
+/*	if(tlv->parent != NULL)
 	{
 		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
 		{
-			if((buf[0] == 0) && (buf[1] == 0))
+			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed+1 ] == 0))
 			{
-				*pBytesParsed = 2;
-				return -3;
+			//	*pBytesParsed = 2;
+
+				bytesParsed += 2;
+
+				tlv->parent->next = TLV_create();
+
+				status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
+
+
+		//		return -3;
 			}
 		}
-	}
+	}*/
 
-	bytesParsed = 0;
+	//bytesParsed = 0;
 
 	//Tag parsing
 	tag[0] = buf[ bytesParsed++ ];
@@ -201,37 +227,102 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		}
 	}
 
+	uint32_t parsed;
+
+
+	TLV_t* nextTLVp;
 
 	if(tlv->type == Constructed)
 	{
 		tlv->child = TLV_create();
 		tlv->child->parent = tlv;
 
+		tlv->value = &buf[bytesParsed];
+
+		nextTLVp = tlv->child;
+
 		uint32_t parsed;
 
-		while(1)
-		{
-			int status = 0;
+	//	while(1)
+	//	{
+		//	int status = 0;
 
-			status = parseTlvFromBuffer(tlv->child, &buf[bytesParsed], tlv->length, &parsed);
-			bytesParsed += parsed;
+		//	status = parseTlvFromBuffer(tlv->child, tlv->value, tlv->length, &parsed);
 
+		//	tlv = tlv->child;
+		//	bytesParsed += parsed;
 
-			if(bytesParsed >= size)
-				return -3;
+		//	bytesParsed += tlv->length;
 
-			if(status == -3)
-				break;
+		//	if(bytesParsed >= size)
+		//		break;
 
-		}
+		//	if(status == -3)
+		//		break;
+		//}
 	}
 	else
 	{
 		tlv->value = &buf[ bytesParsed ];
 		bytesParsed += tlv->length;
+
+		tlv->next = TLV_create();
+		tlv->next->parent = tlv->parent;
+
+
+	//	while(1)
+	/*	{
+
+
+			status = parseTlvFromBuffer(tlv->next, &buf[bytesParsed], size - bytesParsed, &parsed);
+			bytesParsed += parsed;*/
+
+
+		//	if(bytesParsed >= size)
+			//	break;
+
+		//	if(status == -3)
+		//		break;
+	//	}
+
+		nextTLVp = tlv->next;
 	}
 
 	uint8_t* databuf = NULL;
+
+	int status = 0;
+
+
+	if(tlv->parent != NULL)
+	{
+		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
+		{
+			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed+1 ] == 0))
+			{
+			//	*pBytesParsed = 2;
+
+				bytesParsed += 2;
+
+				tlv->parent->next = TLV_create();
+				tlv->parent->next->parent = tlv->parent;
+
+				nextTLVp = tlv->parent->next;
+
+			//	status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
+
+
+		//		return -3;
+			}
+		}
+	}
+
+
+
+
+	status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
+
+
+	//bytesParsed += parsed;
 
 	*pBytesParsed = (uint32_t)bytesParsed;
 	return 0;
@@ -292,6 +383,8 @@ int main(int argc, char* argv[])
 	TLV_t* tlv_head = tlv;
 
 	uint32_t bytesReadFromBuf;
+
+	ParseBuffer = filebuffer;
 	parseTlvFromBuffer(tlv,filebuffer,parsedSize,&bytesReadFromBuf);
 
 /*	while(1)
