@@ -97,9 +97,198 @@ int readByteFromHexFile(FILE* fp, uint8_t* out)
 		}
 	}
 
+	if(idx < 2)
+		return -3;
+
 	*out = ((uint8_t)strtol(hextext, NULL, 16));
 
 	return 0;
+}
+
+
+int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
+{
+
+	uint8_t tag[10];
+
+	uint64_t id;
+
+	int err;
+	uint8_t tmp;
+
+	uint64_t bytesParsed;
+
+
+	//uint8_t end[2];
+
+
+	if(tlv->parent != NULL)
+	{
+
+		if(tlv->parent->type == Constructed)
+		{
+			if((buf[0] == 0) && (buf[1] == 0))
+			{
+				*pBytesParsed = 2;
+				return -3;
+			}
+		}
+	}
+
+	bytesParsed = 0;
+
+	//Tag parsing
+	tag[0] = buf[ bytesParsed++ ];
+
+	tlv->class  = (int)((tag[0] >> 6) & 0x03);
+	tlv->type   = (int)((tag[0] >> 5) & 0x01);
+
+	if((tag[0] & 0x1F) <= 30)
+	{
+		tlv->id = (tag[0] & 0x1F);
+	}
+	else
+	{
+		int offset = (63 - 7);
+		id = 0;
+
+		while(1)
+		{
+			tmp = buf[ bytesParsed++ ];
+
+			id |= ((uint64_t)tmp & 0x7F) << offset;
+			offset -= 7;
+
+			if((tmp & 0x80) == 0)
+				break;
+		}
+
+		id = id >> (offset + 7);
+
+		tlv->id = id;
+	}
+
+	//Length parsing
+	tmp = buf[ bytesParsed++ ];
+
+	if(tmp == 0x80) //Indefinite form
+	{
+		tlv->length_type = Indefinite;
+	}
+	else	//Definite form
+	{
+		if((tmp & 0x80) == 0) //Short form
+		{
+			tlv->length = (tmp & 0x7F);
+			tlv->length_type = Short;
+		}
+		else	//Long form
+		{
+			int bytes_to_read = (int)(tmp & 0x7F);
+
+			tlv->length_type = Long;
+
+			uint32_t offset = (bytes_to_read - 1) * 8;
+
+			tlv->length = 0;
+			for(int i=0; i<bytes_to_read; ++i)
+			{
+				tmp = buf[ bytesParsed++ ];
+
+				tlv->length |= ((uint64_t)tmp >> offset);
+
+				offset -= 8;
+			}
+		}
+	}
+
+
+	if(tlv->type == Constructed)
+	{
+		tlv->child = TLV_create();
+		tlv->child->parent = tlv;
+
+		uint32_t parsed;
+
+		while(1)
+		{
+			int status = 0;
+
+			status = parseTlvFromBuffer(tlv->child, &buf[bytesParsed], size - bytesParsed, &parsed);
+
+			bytesParsed += parsed;
+
+			if(status == -3)
+				break;
+
+		}
+	}
+	else
+	{
+		tlv->value = &buf[ bytesParsed ];
+
+		bytesParsed += tlv->length;
+	}
+
+
+
+	uint8_t* databuf = NULL;
+
+/*	if(tlv->length_type == Indefinite)
+	{
+		uint32_t bufsize = 1024;
+
+		databuf =  (uint8_t*)malloc(bufsize);
+		uint32_t bytes_read = 0;
+		uint8_t* dataPtr = databuf;
+		while(readByteFromHexFile(fp, &tmp) == 0)
+		{
+			bytes_read++;
+			if(bytes_read >= bufsize)
+			{
+				databuf = (uint8_t*)realloc(databuf, bufsize+1024);
+				dataPtr = (databuf + bufsize);
+				bufsize += 1024;
+			}
+
+			uint16_t end_sequence;
+
+			if(bytes_read >= 2)
+			{
+				memcpy(&end_sequence, &databuf[bytes_read - 2], 2);
+			}
+
+			if(end_sequence == 0x0000)
+				break;
+
+			*(dataPtr++) = tmp;
+
+		}
+
+		tlv->value = databuf;
+	}
+	else
+	{
+		databuf =  (uint8_t*)malloc(tlv->length);
+		uint32_t bytes_read = 0;
+		uint8_t* dataPtr = databuf;
+		while(readByteFromHexFile(fp, &tmp) == 0)
+		{
+			bytes_read++;
+			*(dataPtr++) = tmp;
+
+			if(bytes_read >= tlv->length)
+			{
+				break;
+			}
+
+		}
+	}*/
+
+
+	*pBytesParsed = (uint32_t)bytesParsed;
+	return 0;
+
 }
 
 
@@ -344,6 +533,9 @@ int main(int argc, char* argv[])
 	TLV_t* tlv = (TLV_t*)calloc(sizeof(TLV_t), 1);
 
 	TLV_t* tlv_head = tlv;
+
+	uint32_t bytesReadFromBuf;
+	parseTlvFromBuffer(tlv,filebuffer,parsedSize,&bytesReadFromBuf);
 
 	while(1)
 	{
