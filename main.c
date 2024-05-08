@@ -228,65 +228,10 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	else
 	{
 		tlv->value = &buf[ bytesParsed ];
-
 		bytesParsed += tlv->length;
 	}
 
-
-
 	uint8_t* databuf = NULL;
-
-/*	if(tlv->length_type == Indefinite)
-	{
-		uint32_t bufsize = 1024;
-
-		databuf =  (uint8_t*)malloc(bufsize);
-		uint32_t bytes_read = 0;
-		uint8_t* dataPtr = databuf;
-		while(readByteFromHexFile(fp, &tmp) == 0)
-		{
-			bytes_read++;
-			if(bytes_read >= bufsize)
-			{
-				databuf = (uint8_t*)realloc(databuf, bufsize+1024);
-				dataPtr = (databuf + bufsize);
-				bufsize += 1024;
-			}
-
-			uint16_t end_sequence;
-
-			if(bytes_read >= 2)
-			{
-				memcpy(&end_sequence, &databuf[bytes_read - 2], 2);
-			}
-
-			if(end_sequence == 0x0000)
-				break;
-
-			*(dataPtr++) = tmp;
-
-		}
-
-		tlv->value = databuf;
-	}
-	else
-	{
-		databuf =  (uint8_t*)malloc(tlv->length);
-		uint32_t bytes_read = 0;
-		uint8_t* dataPtr = databuf;
-		while(readByteFromHexFile(fp, &tmp) == 0)
-		{
-			bytes_read++;
-			*(dataPtr++) = tmp;
-
-			if(bytes_read >= tlv->length)
-			{
-				break;
-			}
-
-		}
-	}*/
-
 
 	*pBytesParsed = (uint32_t)bytesParsed;
 	return 0;
