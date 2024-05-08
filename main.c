@@ -124,8 +124,7 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 	if(tlv->parent != NULL)
 	{
-
-		if(tlv->parent->type == Constructed)
+		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
 		{
 			if((buf[0] == 0) && (buf[1] == 0))
 			{
@@ -214,9 +213,12 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		{
 			int status = 0;
 
-			status = parseTlvFromBuffer(tlv->child, &buf[bytesParsed], size - bytesParsed, &parsed);
-
+			status = parseTlvFromBuffer(tlv->child, &buf[bytesParsed], tlv->length, &parsed);
 			bytesParsed += parsed;
+
+
+			if(bytesParsed >= size)
+				return -3;
 
 			if(status == -3)
 				break;
@@ -291,196 +293,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 }
 
-
-
-int parseTlvFromFile(TLV_t* tlv, FILE* fp)
-{
-	uint8_t tag[10];
-
-	//if(tlv == NULL)
-//	{
-//		tlv = (TLV_t*)calloc(sizeof(TLV_t),1);
-	//}
-	/*else
-	{
-		tlv->next = (TLV_t*)calloc(sizeof(TLV_t),1);
-		tlv = tlv->next;
-	}*/
-
-//	tlv = (TLV_t*)calloc(sizeof(TLV_t),1);
-
-
-
-	uint64_t id;
-
-	int err;
-	uint8_t tmp;
-
-	uint8_t end[2];
-	if(tlv->parent->type == Constructed)
-	{
-		long int pos = ftell(fp);
-
-		readByteFromHexFile(fp, &end[0]);
-		readByteFromHexFile(fp, &end[1]);
-
-		if((end[0] == 0) && (end[1] == 0))
-		{
-			return -3;
-		}
-		else
-		{
-			fseek(fp,pos,SEEK_SET);
-		}
-
-	}
-
-
-	//Tag parsing
-	err = readByteFromHexFile(fp, &tag[0]);
-
-	if(err == -2)
-		return -2;	//End of file
-
-	tlv->class  = (int)((tag[0] >> 6) & 0x03);
-	tlv->type   = (int)((tag[0] >> 5) & 0x01);
-
-	if((tag[0] & 0x1F) <= 30)
-	{
-		tlv->id = (tag[0] & 0x1F);
-	}
-	else
-	{
-		int offset = (63 - 7);
-		id = 0;
-
-		while(1)
-		{
-			err = readByteFromHexFile(fp, &tmp);
-
-			if(err == -1)
-				break;
-			else if(err == -2)
-			{
-				break;
-			}
-
-			id |= ((uint64_t)tmp & 0x7F) << offset;
-			offset -= 7;
-
-			if((tmp & 0x80) == 0)
-				break;
-		}
-
-		id = id >> (offset + 7);
-
-		tlv->id = id;
-	}
-
-
-	//Length parsing
-	err = readByteFromHexFile(fp, &tmp);
-
-
-	if(tmp == 0x80) //Indefinite form
-	{
-		tlv->length_type = Indefinite;
-	}
-	else	//Definite form
-	{
-		if((tmp & 0x80) == 0) //Short form
-		{
-			tlv->length = (tmp & 0x7F);
-			tlv->length_type = Short;
-		}
-		else	//Long form
-		{
-			int bytes_to_read = (int)(tmp & 0x7F);
-
-			tlv->length_type = Long;
-
-			uint32_t offset = (bytes_to_read - 1) * 8;
-
-			tlv->length = 0;
-			for(int i=0; i<bytes_to_read; ++i)
-			{
-				err = readByteFromHexFile(fp, &tmp);
-
-				tlv->length |= ((uint64_t)tmp >> offset);
-
-				offset -= 8;
-			}
-		}
-	}
-
-
-	if(tlv->type == Constructed)
-	{
-		tlv->child = TLV_create();
-
-		tlv->child->parent = tlv;
-		parseTlvFromFile(tlv->child, fp);
-	}
-	else
-	{
-		uint8_t* databuf = NULL;
-
-		if(tlv->length_type == Indefinite)
-		{
-			uint32_t bufsize = 1024;
-
-			databuf =  (uint8_t*)malloc(bufsize);
-			uint32_t bytes_read = 0;
-			uint8_t* dataPtr = databuf;
-			while(readByteFromHexFile(fp, &tmp) == 0)
-			{
-				bytes_read++;
-				if(bytes_read >= bufsize)
-				{
-					databuf = (uint8_t*)realloc(databuf, bufsize+1024);
-					dataPtr = (databuf + bufsize);
-					bufsize += 1024;
-				}
-
-				uint16_t end_sequence;
-
-				if(bytes_read >= 2)
-				{
-					memcpy(&end_sequence, &databuf[bytes_read - 2], 2);
-				}
-
-				if(end_sequence == 0x0000)
-					break;
-
-				*(dataPtr++) = tmp;
-
-			}
-
-			tlv->value = databuf;
-		}
-		else
-		{
-			databuf =  (uint8_t*)malloc(tlv->length);
-			uint32_t bytes_read = 0;
-			uint8_t* dataPtr = databuf;
-			while(readByteFromHexFile(fp, &tmp) == 0)
-			{
-				bytes_read++;
-				*(dataPtr++) = tmp;
-
-				if(bytes_read >= tlv->length)
-				{
-					break;
-				}
-
-			}
-		}
-	}
-
-	return 0;
-}
-
-
 uint8_t* filebuffer;
 
 int main(int argc, char* argv[])
@@ -537,19 +349,13 @@ int main(int argc, char* argv[])
 	uint32_t bytesReadFromBuf;
 	parseTlvFromBuffer(tlv,filebuffer,parsedSize,&bytesReadFromBuf);
 
-	while(1)
+/*	while(1)
 	{
-
-		if(parseTlvFromFile(tlv, fp) != 0)
-		{
-			break;
-		}
-
 
 		tlv->next = (TLV_t*)calloc(sizeof(TLV_t), 1);
 		tlv = tlv->next;
 
-	}
+	}*/
 
 	tlv = tlv_head;
 
