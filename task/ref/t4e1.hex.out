@@ -1,0 +1,3 @@
+Reading from file: ../../data/t4e1.hex
+ERROR [asn1_encoding:14]: no end marker TLV for indefinite length coding (at raw pos: 1171, filtered pos: 550)
+Decoding failed: no end marker TLV for indefinite length coding (asn1_encoding:14)

@@ -1,0 +1,108 @@
+Reading from file: ../../data/te.hex
+TLV { // offset: 0
+ Tag (class: U, kind: C, id: 16) [30]
+ Length: 7 [8107]
+ Value: {
+    TLV { // offset: 6
+     Tag (class: C, kind: C, id: 0) [a0]
+     Length: 5 [05]
+     Value: {
+        TLV { // offset: 10
+         Tag (class: U, kind: C, id: 16) [30]
+         Length: 3 [03]
+         Value: {
+            TLV { // offset: 14
+             Tag (class: C, kind: P, id: 0) [80]
+             Length: 1 [01]
+             Value: [00]
+            };
+         } // 1 TLVs
+        };
+     } // 1 TLVs
+    };
+ } // 1 TLVs
+};
+TLV { // offset: 21
+ Tag (class: U, kind: C, id: 16) [30]
+ Length: 15 [0f]
+ Value: {
+    TLV { // offset: 25
+     Tag (class: C, kind: C, id: 0) [a0]
+     Length: 11 [0b]
+     Value: {
+        TLV { // offset: 29
+         Tag (class: U, kind: C, id: 16) [30]
+         Length: 9 [09]
+         Value: {
+            TLV { // offset: 33
+             Tag (class: C, kind: P, id: 0) [80]
+             Length: 1 [01]
+             Value: [07]
+            };
+            TLV { // offset: 39
+             Tag (class: C, kind: P, id: 1) [81]
+             Length: 1 [01]
+             Value: [0d]
+            };
+            TLV { // offset: 45
+             Tag (class: C, kind: P, id: 3) [83]
+             Length: 1 [01]
+             Value: [09]
+            };
+         } // 3 TLVs
+        };
+     } // 1 TLVs
+    };
+    TLV { // offset: 51
+     Tag (class: C, kind: P, id: 1) [81]
+     Length: 0 [00]
+     Value: []
+    };
+ } // 2 TLVs
+};
+TLVs read, dumping...
+
+TLV #1
+ Tag (class: U, kind: C, id: 16) [30]
+ Length: 7 [8107]
+ Value: (1 TLVs)
+    TLV #1
+     Tag (class: C, kind: C, id: 0) [a0]
+     Length: 5 [05]
+     Value: (1 TLVs)
+        TLV #1
+         Tag (class: U, kind: C, id: 16) [30]
+         Length: 3 [03]
+         Value: (1 TLVs)
+            TLV #1
+             Tag (class: C, kind: P, id: 0) [80]
+             Length: 1 [01]
+             Value: [00]
+TLV #2
+ Tag (class: U, kind: C, id: 16) [30]
+ Length: 15 [0f]
+ Value: (2 TLVs)
+    TLV #1
+     Tag (class: C, kind: C, id: 0) [a0]
+     Length: 11 [0b]
+     Value: (1 TLVs)
+        TLV #1
+         Tag (class: U, kind: C, id: 16) [30]
+         Length: 9 [09]
+         Value: (3 TLVs)
+            TLV #1
+             Tag (class: C, kind: P, id: 0) [80]
+             Length: 1 [01]
+             Value: [07]
+            TLV #2
+             Tag (class: C, kind: P, id: 1) [81]
+             Length: 1 [01]
+             Value: [0d]
+            TLV #3
+             Tag (class: C, kind: P, id: 3) [83]
+             Length: 1 [01]
+             Value: [09]
+    TLV #2
+     Tag (class: C, kind: P, id: 1) [81]
+     Length: 0 [00]
+     Value: []

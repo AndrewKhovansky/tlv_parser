@@ -1,0 +1,3 @@
+Reading from file: ../../data/t4e2.hex
+ERROR [asn1_encoding:53]: indefinite length in Primitive TLVs (at raw pos: 7, filtered pos: 3)
+Decoding failed: indefinite length in Primitive TLVs (asn1_encoding:53)
