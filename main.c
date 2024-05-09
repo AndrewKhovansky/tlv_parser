@@ -139,22 +139,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		return 0;
 	}
 
-	/*if(tlv->parent != NULL)
-	{
-		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
-		{
-			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed + 1 ] == 0))
-			{
-				bytesParsed += 2;
-
-				tlv->type = Terminator;
-				*pBytesParsed = (uint32_t)bytesParsed;
-
-				return 0;
-			}
-		}
-	}*/
-
 	//Tag parsing
 	tag[0] = buf[ bytesParsed++ ];
 
@@ -261,13 +245,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 	}
 
-
-
-
-//	*pBytesParsed = (uint32_t)bytesParsed;
-
-//	return 0;
-
 	uint32_t parsed;
 
 
@@ -286,7 +263,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 		parseTlvFromBuffer(tlv->child,tlv->value,tlv->length,&parsed);
 		bytesParsed += tlv->length;
-
 
 		if(bytesParsed < size)
 		{
@@ -333,73 +309,12 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 				bytesParsed += parsed;
 			}
 		}
-
-
-
-
-
-
-
-	//	tlv->value = &buf[bytesParsed];
-	//	tlv->length =
-
-
-	//	bytesParsed += parsed;
-
 	}
-
-
-	/*if(tlv->next != NULL)
-	{
-		parseTlvFromBuffer(tlv->next,tlv->value,tlv->length,&parsed);
-
-		bytesParsed += tlv->length;
-	}
-*/
 
 
 
 
 	return 0;
-	uint8_t* databuf = NULL;
-
-	int status = 0;
-
-
-	/*if(tlv->parent != NULL)
-	{
-		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
-		{
-			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed+1 ] == 0))
-			{
-			//	*pBytesParsed = 2;
-
-				bytesParsed += 2;
-
-				tlv->parent->next = TLV_create();
-				tlv->parent->next->parent = tlv->parent;
-
-				nextTLVp = tlv->parent->next;
-
-			//	status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
-
-
-		//		return -3;
-			}
-		}
-	}*/
-
-
-
-
-	//status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
-
-
-	//bytesParsed += parsed;
-
-	*pBytesParsed = (uint32_t)bytesParsed;
-	return 0;
-
 }
 
 uint8_t* filebuffer;
