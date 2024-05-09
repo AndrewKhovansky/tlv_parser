@@ -288,60 +288,21 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		bytesParsed += tlv->length;
 
 
-	//	printf("%*s%s", indent, "", string);
-
-		int indents = 20;
-		TLV_t* tind = tlv->child->parent;
-
-		while(tind)
-		{
-			indents--;
-			tind = tind->parent;
-		}
-
-
-/*		char buffer[1024];
-
-		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->child->id, (int)tlv->child->length);
-
-
-		print_with_indent(indents, buffer);
-
-*/
-
 		if(bytesParsed < size)
 		{
 			tlv->next = TLV_create();
 			tlv->next->parent = tlv->parent;
 
 			tlv->value = &buf[bytesParsed];
+
+			parseTlvFromBuffer(tlv->next,tlv->value,tlv->length,&parsed);
+
+			bytesParsed += tlv->length;
 		}
-
-
-	//	uint32_t parsed;
-
-	//	while(1)
-	//	{
-		//	int status = 0;
-
-		//	status = parseTlvFromBuffer(tlv->child, tlv->value, tlv->length, &parsed);
-
-		//	tlv = tlv->child;
-		//	bytesParsed += parsed;
-
-		//	bytesParsed += tlv->length;
-
-		//	if(bytesParsed >= size)
-		//		break;
-
-		//	if(status == -3)
-		//		break;
-		//}
 	}
 	else
 	{
 		bytesParsed += tlv->length;
-
 
 		nextTLVp = NULL;
 		if(tlv->parent != NULL)
@@ -354,9 +315,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 			while(t)
 			{
 				child_len += (t->length + t->length_size + t->tag_size);
-
-			//	child_len += (t->length);
-
 				t = t->next;
 			}
 
@@ -366,41 +324,38 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 				*pBytesParsed = bytesParsed;
 				return 0;
 			}
+			else
+			{
+				tlv->next = TLV_create();
+				tlv->next->parent = tlv->parent;
+				parseTlvFromBuffer(tlv->next, &buf[bytesParsed], size - bytesParsed, &parsed);
+
+				bytesParsed += parsed;
+			}
 		}
 
-		bytesParsed += tlv->length;
+
+
+
+
+
+
+	//	tlv->value = &buf[bytesParsed];
+	//	tlv->length =
+
+
+	//	bytesParsed += parsed;
+
 	}
 
 
-	if(tlv->next != NULL)
+	/*if(tlv->next != NULL)
 	{
-	/*	tlv->next = TLV_create();
-		tlv->next->parent = tlv->parent;
-
-		tlv->value = &buf[bytesParsed];*/
-
 		parseTlvFromBuffer(tlv->next,tlv->value,tlv->length,&parsed);
 
-	/*	int indents = 20;
-		TLV_t* tind = tlv->next->parent;
-
-		while(tind)
-		{
-			indents--;
-			tind = tind->parent;
-		}
-
-		char buffer[1024];
-
-		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->next->id, (int)tlv->next->length);
-
-
-		print_with_indent(indents, buffer);*/
-
-
 		bytesParsed += tlv->length;
 	}
-
+*/
 
 
 
@@ -507,48 +462,66 @@ int main(int argc, char* argv[])
 	uint32_t bytesParsed = 0;
 
 
-	//tlv->child = TLV_create();
-	//tlv->child->parent = tlv;
 
-//	while(bytesParsed < parsedSize)
-	{
-		parseTlvFromBuffer(tlv, filebuffer + bytesParsed, (parsedSize - bytesParsed), &bytesReadFromBuf);
-		bytesParsed += bytesReadFromBuf;
-	/*	bytesParsed += bytesReadFromBuf;
+	parseTlvFromBuffer(tlv, filebuffer + bytesParsed, (parsedSize - bytesParsed), &bytesReadFromBuf);
+	bytesParsed += bytesReadFromBuf;
 
-		tlv->next = TLV_create();
-		tlv->next->parent = tlv->parent;
-
-		tlv = tlv->next;*/
-
-	/*	if(tlv->type == Constructed)
-		{
-			bytesParsed += (tlv->length_size + tlv->tag_size);
-
-			tlv->child = TLV_create();
-			tlv->child->parent = tlv;
-
-			tlv = tlv->child;
-		}
-		else if(tlv->type == Primitive)
-		{
-			tlv->next = TLV_create();
-			tlv->next->parent = tlv->parent;
-
-			tlv = tlv->next;
-
-			bytesParsed += bytesReadFromBuf;
-		}*/
-	/*	else if(tlv->type == Terminator)
-		{
-			tlv->parent->next = TLV_create();
-			tlv = tlv->parent->next;
-		}*/
-
-	}
 
 	tlv = tlv_head;
 
+	TLV_t* printed_out_list[1024];
+	int printed_out_count;
+
+	int level = 0;
+
+	printed_out_count = 0;
+	while(tlv)
+	{
+		char buffer[1024];
+		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->id, (int)tlv->length);
+		print_with_indent(level * 4, buffer);
+		fflush(stdout);
+
+
+		printed_out_count++;
+
+
+		if((tlv->child != NULL))
+		{
+			tlv = tlv->child;
+			level++;
+		}
+		else if(tlv->next != NULL)
+		{
+			tlv = tlv->next;
+		}
+		else
+		{
+		//	if(tlv->parent == NULL)
+		//		return 0;
+
+			while(1)
+			{
+				if(tlv->parent == NULL)
+				{
+					return 0;
+				}
+
+				tlv = tlv->parent;
+				level--;
+
+				if( !tlv->next )
+				{
+					continue;
+				}
+				else
+				{
+					tlv = tlv->next;
+					break;
+				}
+			}
+		}
+	}
 
 
 //	fclose(fp);
