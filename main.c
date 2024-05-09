@@ -37,7 +37,6 @@ enum TLV_LengthType
 
 struct TLV
 {
-	uint8_t tag[10];
 	uint64_t length;
 	uint8_t* value;
 	uint64_t id;
@@ -118,13 +117,16 @@ void print_with_indent(int indent, char * string)
     printf("%*s%s", indent, "", string);
 }
 
-int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
+TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 {
-
 	uint8_t tag;
 	uint64_t id;
+	uint64_t length;
 	uint8_t tmp;
 	uint32_t bytesParsed;
+
+	uint8_t class;
+	uint8_t type;
 
 	bytesParsed = 0;
 
@@ -134,15 +136,18 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		return 0;
 	}
 
+//	TLV_t* tlv = TLV_create();
+
+
 	//Tag parsing
 	tag = buf[ bytesParsed++ ];
 
-	tlv->class  = (int)((tag >> 6) & 0x03);
-	tlv->type   = (int)((tag >> 5) & 0x01);
+	class  = (int)((tag >> 6) & 0x03);
+	type   = (int)((tag >> 5) & 0x01);
 
 	if((tag & 0x1F) <= 30)
 	{
-		tlv->id = (tag & 0x1F);
+		id = (tag & 0x1F);
 	}
 	else
 	{
