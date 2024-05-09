@@ -51,6 +51,7 @@ struct TLV
 	enum TLV_Type type;
 
 
+	uint64_t length_estimated;
 
 	struct TLV* parent;
 	struct TLV* child;
@@ -134,6 +135,22 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		return 0;
 	}
 
+	/*if(tlv->parent != NULL)
+	{
+		if(tlv->parent->length == UINT64_MAX)
+		{
+			if( (buf[0] == 0) && (buf[1] == 0) )
+			{
+				tlv->parent->length = tlv->parent->length_estimated;
+				*pBytesParsed = 2;
+				return 0;
+			}
+		}
+	}*/
+
+
+
+
 	//Tag parsing
 	tag = buf[ bytesParsed++ ];
 
@@ -174,6 +191,8 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	{
 		tlv->length_type = Indefinite;
 		tlv->length_size = 1;
+		tlv->value = &buf[ bytesParsed ];
+		tlv->length = UINT64_MAX;
 	}
 	else	//Definite form
 	{
@@ -202,31 +221,48 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 				offset -= 8;
 			}
 
-			tlv->length_size = bytes_to_read;
+			tlv->length_size = (bytes_to_read + 1);
 		}
 
 		tlv->value = &buf[ bytesParsed ];
 	}
 
-	if(tlv->length_type == Indefinite)
+	/*if(tlv->length_type == Indefinite)
 	{
 		tlv->value = &buf[ bytesParsed ];
 
 		tlv->length = 0;
+
+		uint8_t* seek = tlv->value;
+
 		while(1)
 		{
-			bytesParsed++;
+		//	bytesParsed++;
 
-			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed + 1 ] == 0))
+			if((seek[0] == 0) && (seek[1] == 0))
 			{
-				bytesParsed  += 2;
+				//bytesParsed  += 2;
 				break;
 			}
+
+			seek++;
+
 			tlv->length++;
 		}
-	}
+	}*/
 
 	uint32_t parsed;
+
+	if(tlv->length == 0)
+	{
+		sleep(0);
+	}
+
+
+	if(tlv->id == 16)
+	{
+		sleep(0);
+	}
 
 	if(tlv->type == Constructed)
 	{
@@ -237,10 +273,10 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 		uint32_t parsed;
 
-		parseTlvFromBuffer(tlv->child, tlv->value, tlv->length,&parsed);
-		bytesParsed += tlv->length;
+		parseTlvFromBuffer(tlv->child, &buf[bytesParsed], tlv->length,&parsed);
+		bytesParsed += parsed;
 
-		if(bytesParsed < size)
+	/*	if(bytesParsed < size)
 		{
 			tlv->next = TLV_create();
 			tlv->next->parent = tlv->parent;
@@ -248,13 +284,22 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 			tlv->value = &buf[bytesParsed];
 
 			parseTlvFromBuffer(tlv->next, tlv->value, tlv->length, &parsed);
-
-			bytesParsed += tlv->length;
-		}
+			bytesParsed += parsed;
+			//bytesParsed += tlv->length;
+		}*/
 	}
 	else
 	{
 		bytesParsed += tlv->length;
+
+
+		if(tlv->length == 0)
+		{
+			sleep(0);
+	//		*pBytesParsed = bytesParsed;
+	//		return 0;
+		}
+
 
 		if(tlv->parent != NULL)
 		{
@@ -262,6 +307,16 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 			uint32_t parent_len =  tlv->parent->length;
 			uint32_t child_len = 0;
+
+
+			if(tlv->length == 0)
+			{
+	//			sleep(0);
+				*pBytesParsed = bytesParsed;
+				return 0;
+			}
+
+
 
 			while(t)
 			{
@@ -285,6 +340,7 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		}
 	}
 
+	*pBytesParsed = bytesParsed;
 	return 0;
 }
 
@@ -346,10 +402,6 @@ int main(int argc, char* argv[])
 	ParseBuffer = filebuffer;
 
 	uint32_t bytesParsed = 0;
-
-
-
-
 
 
 
