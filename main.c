@@ -276,7 +276,7 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		parseTlvFromBuffer(tlv->child, &buf[bytesParsed], tlv->length,&parsed);
 		bytesParsed += parsed;
 
-	/*	if(bytesParsed < size)
+		if(bytesParsed < size)
 		{
 			tlv->next = TLV_create();
 			tlv->next->parent = tlv->parent;
@@ -285,8 +285,7 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 			parseTlvFromBuffer(tlv->next, tlv->value, tlv->length, &parsed);
 			bytesParsed += parsed;
-			//bytesParsed += tlv->length;
-		}*/
+		}
 	}
 	else
 	{
