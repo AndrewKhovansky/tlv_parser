@@ -122,6 +122,13 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 	uint8_t tag;
 	uint64_t id;
 	uint64_t length;
+
+	uint8_t* value;
+
+	int length_type;
+	uint64_t length_size;
+	uint64_t tag_size;
+
 	uint8_t tmp;
 	uint32_t bytesParsed;
 
@@ -133,7 +140,7 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 	if(size == 0)
 	{
 		*pBytesParsed = 0;
-		return 0;
+		return NULL;
 	}
 
 //	TLV_t* tlv = TLV_create();
@@ -166,58 +173,58 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 		}
 
 		id = id >> (offset + 7);
-
-		tlv->id = id;
 	}
 
-	tlv->tag_size = bytesParsed;
+	tag_size = bytesParsed;
 
 	//Length parsing
 	tmp = buf[ bytesParsed++ ];
 
 	if(tmp == 0x80) //Indefinite form
 	{
-		tlv->length_type = Indefinite;
-		tlv->length_size = 1;
+		length_type = Indefinite;
+		length_size = 1;
 	}
 	else	//Definite form
 	{
 		if((tmp & 0x80) == 0) //Short form
 		{
-			tlv->length = (tmp & 0x7F);
-			tlv->length_type = Short;
+			length = (tmp & 0x7F);
+			length_type = Short;
 
-			tlv->length_size = 1;
+			length_size = 1;
 		}
 		else	//Long form
 		{
 			int bytes_to_read = (int)(tmp & 0x7F);
 
-			tlv->length_type = Long;
+			length_type = Long;
 
 			uint32_t offset = (bytes_to_read - 1) * 8;
 
-			tlv->length = 0;
+			length = 0;
 			for(int i=0; i<bytes_to_read; ++i)
 			{
 				tmp = buf[ bytesParsed++ ];
 
-				tlv->length |= ((uint64_t)tmp << offset);
+				length |= ((uint64_t)tmp << offset);
 
 				offset -= 8;
 			}
 
-			tlv->length_size = bytes_to_read;
+			length_size = bytes_to_read;
 		}
 
-		tlv->value = &buf[ bytesParsed ];
+		value = &buf[ bytesParsed ];
+
+		bytesParsed += length;
 	}
 
-	if(tlv->length_type == Indefinite)
+	if(length_type == Indefinite)
 	{
-		tlv->value = &buf[ bytesParsed ];
+		value = &buf[ bytesParsed ];
 
-		tlv->length = 0;
+		length = 0;
 		while(1)
 		{
 			bytesParsed++;
@@ -227,73 +234,59 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 				bytesParsed  += 2;
 				break;
 			}
-			tlv->length++;
+			length++;
 		}
 	}
 
-	uint32_t parsed;
+	TLV_t* tlv = TLV_create();
 
-	if(tlv->type == Constructed)
+	tlv->id = id;
+	tlv->length = length;
+	tlv->length_type = length_type;
+	tlv->class = class;
+	tlv->type = type;
+	tlv->tag_size = tag_size;
+	tlv->length_size = length_size;
+
+	*pBytesParsed = bytesParsed;
+
+	return tlv;
+}
+
+uint8_t* filebuffer;
+
+
+
+
+
+
+int tlvIsFullyParsed(TLV_t* tlv)
+{
+	TLV_t* tlvChild = NULL;
+	TLV_t* tlvNext = NULL;
+
+	uint32_t tlvSize = tlv->length;
+
+	if(tlv->type == Primitive)
 	{
-		tlv->child = TLV_create();
-		tlv->child->parent = tlv;
-
-		tlv->value = &buf[bytesParsed];
-
-		uint32_t parsed;
-
-		parseTlvFromBuffer(tlv->child, tlv->value, tlv->length,&parsed);
-		bytesParsed += tlv->length;
-
-		if(bytesParsed < size)
-		{
-			tlv->next = TLV_create();
-			tlv->next->parent = tlv->parent;
-
-			tlv->value = &buf[bytesParsed];
-
-			parseTlvFromBuffer(tlv->next, tlv->value, tlv->length, &parsed);
-
-			bytesParsed += tlv->length;
-		}
+		return 1;
 	}
 	else
 	{
-		bytesParsed += tlv->length;
-
-		if(tlv->parent != NULL)
+		if(tlv->child != NULL)
 		{
-			TLV_t* t = tlv->parent->child;
-
-			uint32_t parent_len =  tlv->parent->length;
-			uint32_t child_len = 0;
-
-			while(t)
-			{
-				child_len += (t->length + t->length_size + t->tag_size);
-				t = t->next;
-			}
-
-			if(parent_len == child_len)
-			{
-				*pBytesParsed = bytesParsed;
-				return 0;
-			}
-			else
-			{
-				tlv->next = TLV_create();
-				tlv->next->parent = tlv->parent;
-				parseTlvFromBuffer(tlv->next, &buf[bytesParsed], size - bytesParsed, &parsed);
-
-				bytesParsed += parsed;
-			}
+			tlvChild = tlv->child;
 		}
 	}
+
+
+
 
 	return 0;
 }
 
-uint8_t* filebuffer;
+
+
 
 int main(int argc, char* argv[])
 {
@@ -352,16 +345,110 @@ int main(int argc, char* argv[])
 
 	uint32_t bytesParsed = 0;
 
+	uint8_t* parseBuffer = filebuffer;
+	uint32_t parseSize = parsedSize;
+
+//	tlv_head = parseTlvFromBuffer(parseBuffer, parseSize, &bytesReadFromBuf);
+	//bytesParsed += bytesReadFromBuf;
+
+	//tlv = tlv_head;
+
+//	parseBuffer =
+
+	tlv_head = NULL;
+	tlv = NULL;
+	while(1)
+	{
+
+		TLV_t* new_tlv = parseTlvFromBuffer(parseBuffer, parseSize, &bytesReadFromBuf);
+	//	bytesParsed += bytesReadFromBuf;
+
+		if(new_tlv == NULL)
+			break;
+
+		if(tlv_head == NULL)
+			tlv_head = new_tlv;
+
+		if(tlv == NULL)
+		{
+			tlv = new_tlv;
+
+			if(tlv->type == Constructed)
+			{
+				parseBuffer += (tlv->length_size + tlv->tag_size);
+				parseSize -= (tlv->length_size + tlv->tag_size);
+			}
+			else
+			{
+				parseBuffer += (tlv->length_size + tlv->tag_size + tlv->length);
+				parseSize -= (tlv->length_size + tlv->tag_size + tlv->length);
+			}
+
+			continue;
+		}
 
 
+		if(new_tlv->type == Constructed)
+		{
+			parseBuffer += (new_tlv->length_size + new_tlv->tag_size);
+			parseSize -= (new_tlv->length_size + new_tlv->tag_size);
+
+		}
+		else if(new_tlv->type == Primitive)
+		{
+			parseBuffer += (new_tlv->length_size + new_tlv->tag_size + new_tlv->length);
+			parseSize -= (new_tlv->length_size + new_tlv->tag_size + new_tlv->length);
+		}
 
 
+	/*	TLV_t* tlvParent = NULL;
+	//	if (new_tlv->type == Primitive)
+		{
+			tlvParent = tlv->parent;
+			while(tlvParent)
+			{
+				TLV_t* tlvChild = tlvParent->child;
+
+				int child_len = 0;
+				while(tlvChild)
+				{
+					child_len += (tlvChild->length);
+
+					tlvChild = tlvChild->next;
+				}
+
+				child_len += (tlvParent->length_size + tlvParent->tag_size);
+
+				if(child_len == tlvParent->length)
+				{
+					tlvParent = tlvParent->parent;
+				}
+				else
+				{
+					tlvParent = NULL;
+					break;
+				}
+
+			}
+		}
+*/
+
+		if(tlv->type == Constructed)
+		{
+			tlv->child = new_tlv;
+			new_tlv->parent = tlv;
+		}
+		else if(tlv->type == Primitive)
+		{
+			tlv->next = new_tlv;
+			new_tlv->prev = tlv;
+		}
 
 
+		tlv = new_tlv;
 
-	parseTlvFromBuffer(tlv, filebuffer + bytesParsed, (parsedSize - bytesParsed), &bytesReadFromBuf);
-	bytesParsed += bytesReadFromBuf;
 
+	}
 
 	tlv = tlv_head;
 
