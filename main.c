@@ -121,17 +121,12 @@ void print_with_indent(int indent, char * string)
 int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 {
 
-	uint8_t tag[10];
-
+	uint8_t tag;
 	uint64_t id;
-
-	int err;
 	uint8_t tmp;
-
 	uint32_t bytesParsed;
 
 	bytesParsed = 0;
-
 
 	if(size == 0)
 	{
@@ -140,14 +135,14 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	}
 
 	//Tag parsing
-	tag[0] = buf[ bytesParsed++ ];
+	tag = buf[ bytesParsed++ ];
 
-	tlv->class  = (int)((tag[0] >> 6) & 0x03);
-	tlv->type   = (int)((tag[0] >> 5) & 0x01);
+	tlv->class  = (int)((tag >> 6) & 0x03);
+	tlv->type   = (int)((tag >> 5) & 0x01);
 
-	if((tag[0] & 0x1F) <= 30)
+	if((tag & 0x1F) <= 30)
 	{
-		tlv->id = (tag[0] & 0x1F);
+		tlv->id = (tag & 0x1F);
 	}
 	else
 	{
@@ -202,7 +197,7 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 			{
 				tmp = buf[ bytesParsed++ ];
 
-				tlv->length |= ((uint64_t)tmp >> offset);
+				tlv->length |= ((uint64_t)tmp << offset);
 
 				offset -= 8;
 			}
@@ -210,14 +205,8 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 			tlv->length_size = bytes_to_read;
 		}
 
-
 		tlv->value = &buf[ bytesParsed ];
-	//	bytesParsed += tlv->length;
 	}
-
-
-
-
 
 	if(tlv->length_type == Indefinite)
 	{
@@ -227,28 +216,17 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		while(1)
 		{
 			bytesParsed++;
+
 			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed + 1 ] == 0))
 			{
 				bytesParsed  += 2;
-
-		//		return 0;
 				break;
 			}
 			tlv->length++;
 		}
-
-
-	//	tlv->length = 0;
-	}
-	else
-	{
-
 	}
 
 	uint32_t parsed;
-
-
-	TLV_t* nextTLVp;
 
 	if(tlv->type == Constructed)
 	{
@@ -257,11 +235,9 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 		tlv->value = &buf[bytesParsed];
 
-		nextTLVp = tlv->child;
-
 		uint32_t parsed;
 
-		parseTlvFromBuffer(tlv->child,tlv->value,tlv->length,&parsed);
+		parseTlvFromBuffer(tlv->child, tlv->value, tlv->length,&parsed);
 		bytesParsed += tlv->length;
 
 		if(bytesParsed < size)
@@ -271,7 +247,7 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 			tlv->value = &buf[bytesParsed];
 
-			parseTlvFromBuffer(tlv->next,tlv->value,tlv->length,&parsed);
+			parseTlvFromBuffer(tlv->next, tlv->value, tlv->length, &parsed);
 
 			bytesParsed += tlv->length;
 		}
@@ -280,7 +256,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	{
 		bytesParsed += tlv->length;
 
-		nextTLVp = NULL;
 		if(tlv->parent != NULL)
 		{
 			TLV_t* t = tlv->parent->child;
@@ -293,7 +268,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 				child_len += (t->length + t->length_size + t->tag_size);
 				t = t->next;
 			}
-
 
 			if(parent_len == child_len)
 			{
@@ -310,9 +284,6 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 			}
 		}
 	}
-
-
-
 
 	return 0;
 }
@@ -375,6 +346,11 @@ int main(int argc, char* argv[])
 	ParseBuffer = filebuffer;
 
 	uint32_t bytesParsed = 0;
+
+
+
+
+
 
 
 
