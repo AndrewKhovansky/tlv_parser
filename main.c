@@ -45,6 +45,9 @@ struct TLV
 	uint32_t length_size;
 	uint32_t subsequent_len;
 
+
+	uint32_t level;
+
 	enum TLV_LengthType length_type;
 	enum TLV_Class class;
 	enum TLV_Type type;
@@ -220,7 +223,7 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 		bytesParsed += length;
 	}
 
-	if(length_type == Indefinite)
+	/*if(length_type == Indefinite)
 	{
 		value = &buf[ bytesParsed ];
 
@@ -236,7 +239,7 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 			}
 			length++;
 		}
-	}
+	}*/
 
 	TLV_t* tlv = TLV_create();
 
@@ -357,16 +360,38 @@ int main(int argc, char* argv[])
 
 	tlv_head = NULL;
 	tlv = NULL;
+
+	int current_level = 0;
+	enum TLV_LengthType current_length_type = 0;
+	uint64_t current_level_size = 0;
+	uint64_t current_level_len_size = 0;
+	uint64_t current_level_id_size = 0;
 	while(1)
 	{
 
 		TLV_t* new_tlv = parseTlvFromBuffer(parseBuffer, parseSize, &bytesReadFromBuf);
-	//	bytesParsed += bytesReadFromBuf;
 
 		if(new_tlv == NULL)
 			break;
 
-		if(tlv_head == NULL)
+		if(new_tlv->type == Constructed)
+		{
+			bytesReadFromBuf -= new_tlv->length;
+
+
+
+		}
+
+		parseBuffer += bytesReadFromBuf;
+		parseSize -= bytesReadFromBuf;
+
+
+
+
+	//	bytesParsed += bytesReadFromBuf;
+
+
+	/*	if(tlv_head == NULL)
 			tlv_head = new_tlv;
 
 		if(tlv == NULL)
@@ -398,7 +423,7 @@ int main(int argc, char* argv[])
 		{
 			parseBuffer += (new_tlv->length_size + new_tlv->tag_size + new_tlv->length);
 			parseSize -= (new_tlv->length_size + new_tlv->tag_size + new_tlv->length);
-		}
+		}*/
 
 
 	/*	TLV_t* tlvParent = NULL;
@@ -433,7 +458,7 @@ int main(int argc, char* argv[])
 		}
 */
 
-		if(tlv->type == Constructed)
+	/*	if(tlv->type == Constructed)
 		{
 			tlv->child = new_tlv;
 			new_tlv->parent = tlv;
@@ -442,10 +467,79 @@ int main(int argc, char* argv[])
 		{
 			tlv->next = new_tlv;
 			new_tlv->prev = tlv;
+		}*/
+
+
+		if(tlv_head == NULL)
+		{
+			tlv_head = new_tlv;
+			tlv = new_tlv;
+			continue;
+
 		}
 
 
+
+	/*	if(tlv->type == Constructed)
+		{
+			tlv->child = new_tlv;
+			new_tlv->parent = tlv;
+		}
+		else if(tlv->type == Primitive)*/
+		{
+			tlv->next = new_tlv;
+			new_tlv->prev = tlv;
+		}
+
 		tlv = new_tlv;
+
+
+
+
+
+		while(1)
+		{
+			TLV_t* t = tlv_head;
+
+			uint32_t l = 0;
+			while(t)
+			{
+				if(t->level == current_level)
+				{
+					l += t->length;
+				}
+
+				t = t->next;
+			}
+
+			l += (current_level_id_size + current_level_len_size);
+
+
+			if(l == current_level_size)
+			{
+				current_level--;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+
+		tlv->level = current_level;
+		if(tlv->type == Constructed)
+		{
+			current_level++;
+
+			current_length_type = tlv->length_type;
+			current_level_size = tlv->length;
+
+			current_level_id_size = tlv->tag_size;
+			current_level_len_size = tlv->length_size;
+		}
+
+
+
 
 
 	}
@@ -461,15 +555,22 @@ int main(int argc, char* argv[])
 	while(tlv)
 	{
 		char buffer[1024];
+
+
+		level = tlv->level;
+
+
 		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->id, (int)tlv->length);
 		print_with_indent(level * 4, buffer);
 		fflush(stdout);
 
 
-		printed_out_count++;
+		tlv = tlv->next;
+
+//		printed_out_count++;
 
 
-		if((tlv->child != NULL))
+	/*	if((tlv->child != NULL))
 		{
 			tlv = tlv->child;
 			level++;
@@ -503,7 +604,7 @@ int main(int argc, char* argv[])
 					break;
 				}
 			}
-		}
+		}*/
 	}
 
 
