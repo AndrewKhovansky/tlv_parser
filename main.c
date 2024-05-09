@@ -113,6 +113,11 @@ int readByteFromHexFile(FILE* fp, uint8_t* out)
 
 static uint8_t* ParseBuffer;
 
+void print_with_indent(int indent, char * string)
+{
+    printf("%*s%s", indent, "", string);
+}
+
 int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 {
 
@@ -283,6 +288,27 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		bytesParsed += tlv->length;
 
 
+	//	printf("%*s%s", indent, "", string);
+
+		int indents = 20;
+		TLV_t* tind = tlv->child->parent;
+
+		while(tind)
+		{
+			indents--;
+			tind = tind->parent;
+		}
+
+
+/*		char buffer[1024];
+
+		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->child->id, (int)tlv->child->length);
+
+
+		print_with_indent(indents, buffer);
+
+*/
+
 		if(bytesParsed < size)
 		{
 			tlv->next = TLV_create();
@@ -355,8 +381,28 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 		parseTlvFromBuffer(tlv->next,tlv->value,tlv->length,&parsed);
 
+	/*	int indents = 20;
+		TLV_t* tind = tlv->next->parent;
+
+		while(tind)
+		{
+			indents--;
+			tind = tind->parent;
+		}
+
+		char buffer[1024];
+
+		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->next->id, (int)tlv->next->length);
+
+
+		print_with_indent(indents, buffer);*/
+
+
 		bytesParsed += tlv->length;
 	}
+
+
+
 
 
 	return 0;
@@ -502,9 +548,6 @@ int main(int argc, char* argv[])
 	}
 
 	tlv = tlv_head;
-
-
-
 
 
 
