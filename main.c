@@ -22,7 +22,8 @@ enum TLV_Class
 enum TLV_Type
 {
 	Primitive,
-	Constructed
+	Constructed,
+	Terminator
 };
 
 enum TLV_LengthType
@@ -39,13 +40,17 @@ struct TLV
 	uint8_t tag[10];
 	uint64_t length;
 	uint8_t* value;
-	uint8_t number;
+	uint64_t id;
+
+	uint32_t tag_size;
+	uint32_t length_size;
+	uint32_t subsequent_len;
 
 	enum TLV_LengthType length_type;
 	enum TLV_Class class;
 	enum TLV_Type type;
 
-	uint64_t id;
+
 
 	struct TLV* parent;
 	struct TLV* child;
@@ -118,49 +123,32 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	int err;
 	uint8_t tmp;
 
-	static uint64_t bytesParsed;
+	uint32_t bytesParsed;
 
-	buf = ParseBuffer;
-
-
-	if(bytesParsed >= size)
-	{
-		*pBytesParsed = (uint32_t)bytesParsed;
-		return 0;
-	}
-
-	//static uint64_t totalBytesParsed;
+	bytesParsed = 0;
 
 
-	//uint8_t end[2];
-
-	/*if(size == 0)
+	if(size == 0)
 	{
 		*pBytesParsed = 0;
 		return 0;
-	}*/
+	}
 
-/*	if(tlv->parent != NULL)
+	/*if(tlv->parent != NULL)
 	{
 		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
 		{
-			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed+1 ] == 0))
+			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed + 1 ] == 0))
 			{
-			//	*pBytesParsed = 2;
-
 				bytesParsed += 2;
 
-				tlv->parent->next = TLV_create();
+				tlv->type = Terminator;
+				*pBytesParsed = (uint32_t)bytesParsed;
 
-				status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
-
-
-		//		return -3;
+				return 0;
 			}
 		}
 	}*/
-
-	//bytesParsed = 0;
 
 	//Tag parsing
 	tag[0] = buf[ bytesParsed++ ];
@@ -193,12 +181,15 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		tlv->id = id;
 	}
 
+	tlv->tag_size = bytesParsed;
+
 	//Length parsing
 	tmp = buf[ bytesParsed++ ];
 
 	if(tmp == 0x80) //Indefinite form
 	{
 		tlv->length_type = Indefinite;
+		tlv->length_size = 1;
 	}
 	else	//Definite form
 	{
@@ -206,6 +197,8 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		{
 			tlv->length = (tmp & 0x7F);
 			tlv->length_type = Short;
+
+			tlv->length_size = 1;
 		}
 		else	//Long form
 		{
@@ -224,8 +217,51 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 
 				offset -= 8;
 			}
+
+			tlv->length_size = bytes_to_read;
 		}
+
+
+		tlv->value = &buf[ bytesParsed ];
+	//	bytesParsed += tlv->length;
 	}
+
+
+
+
+
+	if(tlv->length_type == Indefinite)
+	{
+		tlv->value = &buf[ bytesParsed ];
+
+		tlv->length = 0;
+		while(1)
+		{
+			bytesParsed++;
+			if((buf[ bytesParsed ] == 0) && (buf[ bytesParsed + 1 ] == 0))
+			{
+				bytesParsed  += 2;
+
+		//		return 0;
+				break;
+			}
+			tlv->length++;
+		}
+
+
+	//	tlv->length = 0;
+	}
+	else
+	{
+
+	}
+
+
+
+
+//	*pBytesParsed = (uint32_t)bytesParsed;
+
+//	return 0;
 
 	uint32_t parsed;
 
@@ -242,6 +278,21 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		nextTLVp = tlv->child;
 
 		uint32_t parsed;
+
+		parseTlvFromBuffer(tlv->child,tlv->value,tlv->length,&parsed);
+		bytesParsed += tlv->length;
+
+
+		if(bytesParsed < size)
+		{
+			tlv->next = TLV_create();
+			tlv->next->parent = tlv->parent;
+
+			tlv->value = &buf[bytesParsed];
+		}
+
+
+	//	uint32_t parsed;
 
 	//	while(1)
 	//	{
@@ -263,37 +314,58 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 	}
 	else
 	{
-		tlv->value = &buf[ bytesParsed ];
 		bytesParsed += tlv->length;
 
-		tlv->next = TLV_create();
-		tlv->next->parent = tlv->parent;
+
+		nextTLVp = NULL;
+		if(tlv->parent != NULL)
+		{
+			TLV_t* t = tlv->parent->child;
+
+			uint32_t parent_len =  tlv->parent->length;
+			uint32_t child_len = 0;
+
+			while(t)
+			{
+				child_len += (t->length + t->length_size + t->tag_size);
+
+			//	child_len += (t->length);
+
+				t = t->next;
+			}
 
 
-	//	while(1)
-	/*	{
+			if(parent_len == child_len)
+			{
+				*pBytesParsed = bytesParsed;
+				return 0;
+			}
+		}
 
-
-			status = parseTlvFromBuffer(tlv->next, &buf[bytesParsed], size - bytesParsed, &parsed);
-			bytesParsed += parsed;*/
-
-
-		//	if(bytesParsed >= size)
-			//	break;
-
-		//	if(status == -3)
-		//		break;
-	//	}
-
-		nextTLVp = tlv->next;
+		bytesParsed += tlv->length;
 	}
 
+
+	if(tlv->next != NULL)
+	{
+	/*	tlv->next = TLV_create();
+		tlv->next->parent = tlv->parent;
+
+		tlv->value = &buf[bytesParsed];*/
+
+		parseTlvFromBuffer(tlv->next,tlv->value,tlv->length,&parsed);
+
+		bytesParsed += tlv->length;
+	}
+
+
+	return 0;
 	uint8_t* databuf = NULL;
 
 	int status = 0;
 
 
-	if(tlv->parent != NULL)
+	/*if(tlv->parent != NULL)
 	{
 		if((tlv->parent->type == Constructed) && (tlv->parent->length_type == Indefinite))
 		{
@@ -314,12 +386,12 @@ int parseTlvFromBuffer(TLV_t* tlv, uint8_t* buf, uint32_t size, uint32_t* pBytes
 		//		return -3;
 			}
 		}
-	}
+	}*/
 
 
 
 
-	status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
+	//status = parseTlvFromBuffer(nextTLVp, &buf[bytesParsed], size, &parsed);
 
 
 	//bytesParsed += parsed;
@@ -385,17 +457,55 @@ int main(int argc, char* argv[])
 	uint32_t bytesReadFromBuf;
 
 	ParseBuffer = filebuffer;
-	parseTlvFromBuffer(tlv,filebuffer,parsedSize,&bytesReadFromBuf);
 
-/*	while(1)
+	uint32_t bytesParsed = 0;
+
+
+	//tlv->child = TLV_create();
+	//tlv->child->parent = tlv;
+
+//	while(bytesParsed < parsedSize)
 	{
+		parseTlvFromBuffer(tlv, filebuffer + bytesParsed, (parsedSize - bytesParsed), &bytesReadFromBuf);
+		bytesParsed += bytesReadFromBuf;
+	/*	bytesParsed += bytesReadFromBuf;
 
-		tlv->next = (TLV_t*)calloc(sizeof(TLV_t), 1);
-		tlv = tlv->next;
+		tlv->next = TLV_create();
+		tlv->next->parent = tlv->parent;
 
-	}*/
+		tlv = tlv->next;*/
+
+	/*	if(tlv->type == Constructed)
+		{
+			bytesParsed += (tlv->length_size + tlv->tag_size);
+
+			tlv->child = TLV_create();
+			tlv->child->parent = tlv;
+
+			tlv = tlv->child;
+		}
+		else if(tlv->type == Primitive)
+		{
+			tlv->next = TLV_create();
+			tlv->next->parent = tlv->parent;
+
+			tlv = tlv->next;
+
+			bytesParsed += bytesReadFromBuf;
+		}*/
+	/*	else if(tlv->type == Terminator)
+		{
+			tlv->parent->next = TLV_create();
+			tlv = tlv->parent->next;
+		}*/
+
+	}
 
 	tlv = tlv_head;
+
+
+
+
 
 
 //	fclose(fp);
