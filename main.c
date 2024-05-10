@@ -319,6 +319,22 @@ int tlvIsFullyParsed(TLV_t* tlv)
 }
 
 
+int TLV_getNumSubTlvs(TLV_t* tlv)
+{
+	int count = 0;
+
+
+	tlv = tlv->child;
+
+	while(tlv)
+	{
+		count++;
+		tlv = tlv->next;
+	}
+
+	return count;
+}
+
 
 
 int main(int argc, char* argv[])
@@ -517,7 +533,7 @@ int main(int argc, char* argv[])
 	int level  = 0;
 	while(tlv)
 	{
-		char buffer[1024];
+		char buffer[2048];
 		int len = 0;
 
 		len += sprintf(&buffer[len], "Tag: ");
@@ -558,7 +574,7 @@ int main(int argc, char* argv[])
 		len += sprintf(&buffer[len], "ID: %d ", (int)tlv->id);
 
 
-		len += sprintf(&buffer[len], "[0x");
+		len += sprintf(&buffer[len], "[");
 		for(int i=0; i<tlv->tag_size; ++i)
 		{
 			len += sprintf(&buffer[len], "%x", tlv->tag_raw[i]);
@@ -579,7 +595,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 
-		len += sprintf(&buffer[len], "[0x");
+		len += sprintf(&buffer[len], "[");
 		for(int i=0; i<tlv->length_size; ++i)
 		{
 			len += sprintf(&buffer[len], "%x", tlv->length_raw[i]);
@@ -589,9 +605,23 @@ int main(int argc, char* argv[])
 		print_with_indent(level * 2, buffer);
 
 
+		len = 0;
 
-
-
+		if(tlv->type == Primitive)
+		{
+			len += sprintf(&buffer[len], "Value: [");
+			for(int i=0; i<tlv->length; ++i)
+			{
+				len += sprintf(&buffer[len], "%x", tlv->value[i]);
+			}
+			len += sprintf(&buffer[len], "]\r\n");
+		}
+		else
+		{
+			int sub_tlvs = TLV_getNumSubTlvs(tlv);
+			len += sprintf(&buffer[len], "Value: Constructed (%d TLVs)\r\n", sub_tlvs);
+		}
+		print_with_indent(level * 2, buffer);
 
 		len = 0;
 
@@ -602,11 +632,11 @@ int main(int argc, char* argv[])
 			tlv = tlv->child;
 			level++;
 		}
-		else if(tlv->next != NULL)	//Select next TLV on this level
+		else if(tlv->next != NULL)	//No child. Select next TLV on this level
 		{
 			tlv = tlv->next;
 		}
-		else	//Select parent TLV
+		else	//No child or brother TLV. Select parent TLV
 		{
 			while(1)
 			{
