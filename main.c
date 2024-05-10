@@ -234,7 +234,12 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 	TLV_t* tlv = TLV_create();
 
 	tlv->id = id;
-	tlv->length = length;
+
+	if(length_type != Indefinite)
+		tlv->length = length;
+	else
+		tlv->length = UINT64_MAX;
+
 	tlv->value = value;
 	tlv->length_type = length_type;
 	tlv->class = class;
@@ -385,6 +390,9 @@ int main(int argc, char* argv[])
 			break;
 
 
+
+
+
 		parseBuffer += bytesReadFromBuf;
 		parseSize -= bytesReadFromBuf;
 
@@ -405,6 +413,12 @@ int main(int argc, char* argv[])
 
 
 
+		if((tlv->length == 0) && (tlv->id == 0))
+		{
+			sleep(0);
+		}
+
+
 		if(tlv_prev->type == Constructed)
 		{
 
@@ -412,6 +426,9 @@ int main(int argc, char* argv[])
 			{
 				tlv_prev->next = tlv;
 				tlv->prev = tlv_prev;
+
+
+				tlv->parent = tlv_prev->parent;
 			}
 			else
 			{
@@ -436,6 +453,12 @@ int main(int argc, char* argv[])
 			sleep(0);
 		}
 
+
+		if((tlv->length == 0) && (tlv->id == 0))
+		{
+			sleep(0);
+		}
+
 		if(tlv->type == Primitive)
 		{
 			TLV_t* tp = tlv->parent;
@@ -445,31 +468,46 @@ int main(int argc, char* argv[])
 			parsed_data = (tlv->length + tlv->length_size + tlv->tag_size);
 			while(tp)
 			{
-				tp->unparsed_data_size -= parsed_data;
-
-				if(tp->unparsed_data_size == 0)
+				if(tp->length_type != Indefinite)
 				{
-					tlv_prev = tp;
+					tp->unparsed_data_size -= parsed_data;
 
-					if(tp->parent)
+					if(tp->unparsed_data_size == 0)
 					{
-						tp->parent->unparsed_data_size -= (tp->length_size + tp->tag_size);
+						tlv_prev = tp;
+
+						if(tp->parent)
+						{
+							tp->parent->unparsed_data_size -= (tp->length_size + tp->tag_size);
+						}
 					}
 
-
+					tp = tp->parent;
 				}
+				else
+				{
+					if((tlv->length == 0) && (tlv->id == 0))
+					{
+						tlv_prev = tp;
+
+						tp->unparsed_data_size = 0;
 
 
-			//	parsed_data += (tlv->length_size + tlv->tag_size);
+						if(tp->parent)
+						{
+							if(tp->parent->length_type != Indefinite)
+							{
+								if(tp->parent->unparsed_data_size >= (tp->length_size + tp->tag_size))
+									tp->parent->unparsed_data_size -= (tp->length_size + tp->tag_size);
+							}
+						}
 
-			//	parsed_data += (tp->length_size + tp->tag_size);
+						break;
 
+					}
 
-				tp = tp->parent;
-
-
-				if(!tp)
-					break;
+					tp = tp->parent;
+				}
 			}
 		}
 	}
