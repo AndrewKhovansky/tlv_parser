@@ -46,8 +46,10 @@ struct TLV
 	uint32_t subsequent_len;
 
 
-	uint32_t level;
+	//uint32_t level;
 
+	uint8_t tag_raw[10];
+	uint8_t length_raw[10];
 
 	uint32_t real_data_len;
 
@@ -133,6 +135,11 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 
 	uint8_t* value;
 
+	uint8_t tag_raw[10];
+	uint8_t length_raw[10];
+
+	int rawcount = 0;
+
 	int length_type;
 	uint64_t length_size;
 	uint64_t tag_size;
@@ -151,7 +158,10 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 	}
 
 	//Tag parsing
+	rawcount = 0;
 	tag = buf[ bytesParsed++ ];
+
+	tag_raw[rawcount++] = tag;
 
 	class  = (int)((tag >> 6) & 0x03);
 	type   = (int)((tag >> 5) & 0x01);
@@ -169,6 +179,8 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 		{
 			tmp = buf[ bytesParsed++ ];
 
+			tag_raw[rawcount++] = tmp;
+
 			id |= ((uint64_t)tmp & 0x7F) << offset;
 			offset -= 7;
 
@@ -182,7 +194,11 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 	tag_size = bytesParsed;
 
 	//Length parsing
+	rawcount = 0;
+
 	tmp = buf[ bytesParsed++ ];
+
+	length_raw[rawcount++] = tmp;
 
 	if(tmp == 0x80) //Indefinite form
 	{
@@ -210,6 +226,8 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 			for(int i=0; i<bytes_to_read; ++i)
 			{
 				tmp = buf[ bytesParsed++ ];
+
+				length_raw[rawcount++] = tmp;
 
 				length |= ((uint64_t)tmp << offset);
 
@@ -239,6 +257,9 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 	tlv->tag_size = tag_size;
 	tlv->length_size = length_size;
 
+
+	memcpy(tlv->tag_raw, tag_raw, tag_size);
+	memcpy(tlv->length_raw, length_raw, length_size);
 
 	if(tlv->type == Primitive)
 	{
@@ -467,6 +488,7 @@ int main(int argc, char* argv[])
 		char buffer[1024];
 		int len = 0;
 
+		len += sprintf(&buffer[len], "Tag: ");
 
 		switch(tlv->class)
 		{
@@ -487,7 +509,6 @@ int main(int argc, char* argv[])
 			break;
 		}
 
-
 		switch(tlv->type)
 		{
 		case Primitive:
@@ -502,23 +523,42 @@ int main(int argc, char* argv[])
 		}
 
 
-		len += sprintf(&buffer[len], "ID: %d, ", (int)tlv->id);
+		len += sprintf(&buffer[len], "ID: %d ", (int)tlv->id);
+
+
+		len += sprintf(&buffer[len], "[0x");
+		for(int i=0; i<tlv->tag_size; ++i)
+		{
+			len += sprintf(&buffer[len], "%x", tlv->tag_raw[i]);
+		}
+		len += sprintf(&buffer[len], "]\r\n");
+
+		print_with_indent(level * 2, buffer);
+
+		len = 0;
 
 		switch(tlv->type)
 		{
 		case Indefinite:
-			len += sprintf(&buffer[len], "Length: INDEFINITE\r\n");
+			len += sprintf(&buffer[len], "Length: INDEFINITE ");
 			break;
 		default:
-			len += sprintf(&buffer[len], "Length: %u\r\n", (uint32_t)tlv->length);
+			len += sprintf(&buffer[len], "Length: %u ", (uint32_t)tlv->length);
 			break;
 		}
 
+		len += sprintf(&buffer[len], "[0x");
+		for(int i=0; i<tlv->length_size; ++i)
+		{
+			len += sprintf(&buffer[len], "%x", tlv->length_raw[i]);
+		}
+		len += sprintf(&buffer[len], "]\r\n");
+
 		print_with_indent(level * 2, buffer);
 
+		len = 0;
 
 		fflush(stdout);
-
 
 		if((tlv->child != NULL))
 		{
@@ -554,8 +594,6 @@ int main(int argc, char* argv[])
 		}
 	}
 
-
-//	fclose(fp);
 }
 
 
