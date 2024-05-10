@@ -390,6 +390,20 @@ int main(int argc, char* argv[])
 		tlv = parseTlvFromBuffer(parseBuffer, parseSize, &errb);
 
 		if(tlv == NULL)
+		{
+			if(tlv_prev->parent)
+			{
+				if(tlv_prev->parent->length_type == Indefinite)
+				{
+					printf("No trailing TLV\r\n");
+					fflush(stdout);
+					return -1;
+				}
+
+			}
+		}
+
+		if(tlv == NULL)
 			break;
 
 		offset = (tlv->length_size + tlv->tag_size);
@@ -555,7 +569,7 @@ int main(int argc, char* argv[])
 
 		len = 0;
 
-		switch(tlv->type)
+		switch(tlv->length_type)
 		{
 		case Indefinite:
 			len += sprintf(&buffer[len], "Length: INDEFINITE ");
