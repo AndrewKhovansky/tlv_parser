@@ -127,7 +127,24 @@ void print_with_indent(int indent, char * string)
     printf("%*s%s", indent, "", string);
 }
 
-TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
+
+enum TLV_ErrorType
+{
+	None,
+	InvalidClass,
+	InvalidType,
+	InvalidSize,
+	NoTrailingTLV,
+};
+
+typedef struct
+{
+	uint32_t offset;
+	enum TLV_ErrorType errorType;
+}ErrorBlock_t;
+
+
+TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, ErrorBlock_t* errblock)
 {
 	uint8_t tag;
 	uint64_t id;
@@ -366,10 +383,11 @@ int main(int argc, char* argv[])
 	TLV_t* tlv = NULL;
 
 	uint32_t offset = 0;
+
+	ErrorBlock_t errb;
 	while(1)
 	{
-
-		tlv = parseTlvFromBuffer(parseBuffer, parseSize);
+		tlv = parseTlvFromBuffer(parseBuffer, parseSize, &errb);
 
 		if(tlv == NULL)
 			break;
@@ -556,20 +574,25 @@ int main(int argc, char* argv[])
 
 		print_with_indent(level * 2, buffer);
 
+
+
+
+
+
 		len = 0;
 
 		fflush(stdout);
 
-		if((tlv->child != NULL))
+		if((tlv->child != NULL)) //Select child TLV
 		{
 			tlv = tlv->child;
 			level++;
 		}
-		else if(tlv->next != NULL)
+		else if(tlv->next != NULL)	//Select next TLV on this level
 		{
 			tlv = tlv->next;
 		}
-		else
+		else	//Select parent TLV
 		{
 			while(1)
 			{
