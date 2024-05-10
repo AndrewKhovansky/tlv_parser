@@ -129,10 +129,11 @@ void print_with_indent(int indent, char * string)
 enum TLV_ErrorType
 {
 	None,
-	InvalidClass,
-	InvalidType,
-	InvalidSize,
-	NoTrailingTLV,
+	ErrorInvalidClass,
+	ErrorInvalidType,
+	ErrorInvalidSize,
+	ErrorPrimitiveIndefinite,
+	ErrorNoTrailingTLV,
 };
 
 typedef struct
@@ -163,7 +164,7 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, ErrorBlock_t* errblock)
 	uint32_t bytesParsed;
 
 	uint8_t class;
-	uint8_t type;
+	enum TLV_Type type;
 
 	bytesParsed = 0;
 
@@ -219,6 +220,13 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, ErrorBlock_t* errblock)
 	{
 		length_type = Indefinite;
 		length_size = 1;
+
+	/*	if(type == Primitive)
+		{
+			errblock->errorType = ErrorPrimitiveIndefinite;
+			errblock->offset = bytesParsed;
+			return NULL;
+		}*/
 	}
 	else	//Definite form
 	{
@@ -254,6 +262,16 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, ErrorBlock_t* errblock)
 	}
 
 	value = &buf[ bytesParsed ];
+
+
+
+	if((type == Primitive) && (length_type == Indefinite))
+	{
+		errblock->errorType = ErrorPrimitiveIndefinite;
+		errblock->offset = bytesParsed;
+		return NULL;
+	}
+
 
 
 	TLV_t* tlv = TLV_create();
@@ -361,17 +379,33 @@ int main(int argc, char* argv[])
 	uint32_t offset = 0;
 
 	ErrorBlock_t errb;
+
+	//int offset = 0;
+
+
+	uint8_t* parseBufferBegin = parseBuffer;
+
+	errb.errorType = None;
 	while(1)
 	{
 		tlv = parseTlvFromBuffer(parseBuffer, parseSize, &errb);
 
 		if(tlv == NULL)
 		{
+			if(errb.errorType == ErrorPrimitiveIndefinite)
+			{
+				printf("Indefinite length in primitive TLV. Binary offset: %d\r\n", (parseBuffer - parseBufferBegin));
+				fflush(stdout);
+				return -1;
+			}
+
+
+
 			if(tlv_prev->parent)
 			{
 				if(tlv_prev->parent->length_type == Indefinite)
 				{
-					printf("No trailing TLV\r\n");
+					printf("No trailing TLV. Binary offset: %d\r\n", (parseBuffer - parseBufferBegin));
 					fflush(stdout);
 					return -1;
 				}
