@@ -125,7 +125,7 @@ void print_with_indent(int indent, char * string)
     printf("%*s%s", indent, "", string);
 }
 
-TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
+TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size)
 {
 	uint8_t tag;
 	uint64_t id;
@@ -147,12 +147,8 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 
 	if(size == 0)
 	{
-		*pBytesParsed = 0;
 		return NULL;
 	}
-
-//	TLV_t* tlv = TLV_create();
-
 
 	//Tag parsing
 	tag = buf[ bytesParsed++ ];
@@ -220,12 +216,8 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 				offset -= 8;
 			}
 
-			length_size = bytes_to_read;
+			length_size = bytes_to_read + 1;
 		}
-
-	//	value = &buf[ bytesParsed ];
-
-	//	bytesParsed += length;
 	}
 
 	value = &buf[ bytesParsed ];
@@ -252,9 +244,6 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, uint32_t* pBytesParsed)
 	{
 		bytesParsed += tlv->length;
 	}
-
-
-	*pBytesParsed = bytesParsed;
 
 	return tlv;
 }
@@ -345,56 +334,32 @@ int main(int argc, char* argv[])
 
 	TLV_t* tlv_head = tlv_prev;
 
-	uint32_t bytesReadFromBuf;
-
 	ParseBuffer = filebuffer;
-
-	uint32_t bytesParsed = 0;
 
 	uint8_t* parseBuffer = filebuffer;
 	uint32_t parseSize = parsedSize;
 
-//	tlv_head = parseTlvFromBuffer(parseBuffer, parseSize, &bytesReadFromBuf);
-	//bytesParsed += bytesReadFromBuf;
-
-	//tlv = tlv_head;
-
-//	parseBuffer =
-
 	tlv_head = NULL;
 	tlv_prev = NULL;
 
-	int current_level = 0;
-	enum TLV_LengthType current_length_type = 0;
-	uint64_t current_level_size = 0;
-	uint64_t current_level_len_size = 0;
-	uint64_t current_level_id_size = 0;
-
-
-	TLV_t* tlv_stack[1024];
-	uint32_t tlv_stack_length[10];
-	int tlv_count = 0;
-
-
-
-	memset(tlv_stack,0x00,sizeof(tlv_stack));
-	memset(tlv_stack_length,0x00,sizeof(tlv_stack_length));
-
 	TLV_t* tlv = NULL;
+
+	uint32_t offset = 0;
 	while(1)
 	{
 
-		tlv = parseTlvFromBuffer(parseBuffer, parseSize, &bytesReadFromBuf);
+		tlv = parseTlvFromBuffer(parseBuffer, parseSize);
 
 		if(tlv == NULL)
 			break;
 
+		offset = (tlv->length_size + tlv->tag_size);
 
+		if(tlv->type == Primitive)
+			offset += tlv->length;
 
-
-
-		parseBuffer += bytesReadFromBuf;
-		parseSize -= bytesReadFromBuf;
+		parseBuffer += offset;
+		parseSize -= offset;
 
 
 		if(tlv->type == Constructed)
@@ -402,22 +367,12 @@ int main(int argc, char* argv[])
 			tlv->unparsed_data_size = tlv->length;
 		}
 
-
 		if(tlv_head == NULL)
 		{
 			tlv_head = tlv;
 			tlv_prev = tlv;
 			continue;
 		}
-
-
-
-
-		if((tlv->length == 0) && (tlv->id == 0))
-		{
-			sleep(0);
-		}
-
 
 		if(tlv_prev->type == Constructed)
 		{
@@ -444,20 +399,7 @@ int main(int argc, char* argv[])
 			tlv->parent = tlv_prev->parent;
 		}
 
-
 		tlv_prev = tlv;
-
-
-		if(tlv->length == 33)
-		{
-			sleep(0);
-		}
-
-
-		if((tlv->length == 0) && (tlv->id == 0))
-		{
-			sleep(0);
-		}
 
 		if(tlv->type == Primitive)
 		{
@@ -492,7 +434,6 @@ int main(int argc, char* argv[])
 
 						tp->unparsed_data_size = 0;
 
-
 						if(tp->parent)
 						{
 							if(tp->parent->length_type != Indefinite)
@@ -503,7 +444,6 @@ int main(int argc, char* argv[])
 						}
 
 						break;
-
 					}
 
 					tp = tp->parent;
@@ -516,16 +456,6 @@ int main(int argc, char* argv[])
 
 	tlv_prev = tlv_head;
 
-	TLV_t* printed_out_list[1024];
-	int printed_out_count;
-
-
-
-	printed_out_count = 0;
-
-
-	//tlv = tlv_tree;
-
 	tlv = NULL;
 
 	tlv = tlv_head;
@@ -535,24 +465,59 @@ int main(int argc, char* argv[])
 	while(tlv)
 	{
 		char buffer[1024];
+		int len = 0;
 
 
-	//	int level = tlv->level;
+		switch(tlv->class)
+		{
+		case Universal:
+			len += sprintf(&buffer[len], "Class: Universal, ");
+			break;
+		case Application:
+			len += sprintf(&buffer[len], "Class: Application, ");
+			break;
+		case ContextSpecific:
+			len += sprintf(&buffer[len], "Class: Context-Specific, ");
+			break;
+		case Private:
+			len += sprintf(&buffer[len], "Class: Private, ");
+			break;
+		default:
+			len += sprintf(&buffer[len], "Class: Unknown, ");
+			break;
+		}
 
-		//int level = 0;
+
+		switch(tlv->type)
+		{
+		case Primitive:
+			len += sprintf(&buffer[len], "Type: Primitive, ");
+			break;
+		case Constructed:
+			len += sprintf(&buffer[len], "Type: Constructed, ");
+			break;
+		default:
+			len += sprintf(&buffer[len], "Class: Unknown, ");
+			break;
+		}
 
 
+		len += sprintf(&buffer[len], "ID: %d, ", (int)tlv->id);
+
+		switch(tlv->type)
+		{
+		case Indefinite:
+			len += sprintf(&buffer[len], "Length: INDEFINITE\r\n");
+			break;
+		default:
+			len += sprintf(&buffer[len], "Length: %u\r\n", (uint32_t)tlv->length);
+			break;
+		}
+
+		print_with_indent(level * 2, buffer);
 
 
-		sprintf(buffer, "id: %d, len: %d\r\n", (int)tlv->id, (int)tlv->length);
-		print_with_indent(level * 4, buffer);
 		fflush(stdout);
-
-
-
-	//	tlv = tlv->next;
-
-//		printed_out_count++;
 
 
 		if((tlv->child != NULL))
@@ -566,9 +531,6 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-		//	if(tlv->parent == NULL)
-		//		return 0;
-
 			while(1)
 			{
 				if(tlv->parent == NULL)
