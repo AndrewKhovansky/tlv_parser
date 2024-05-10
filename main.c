@@ -76,7 +76,6 @@ TLV_t* TLV_create()
 	return (TLV_t*)calloc(sizeof(TLV_t),1);
 }
 
-
 int readByteFromHexFile(FILE* fp, uint8_t* out)
 {
 	char hextext[3];
@@ -126,7 +125,6 @@ void print_with_indent(int indent, char * string)
 {
     printf("%*s%s", indent, "", string);
 }
-
 
 enum TLV_ErrorType
 {
@@ -288,37 +286,6 @@ TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, ErrorBlock_t* errblock)
 
 uint8_t* filebuffer;
 
-
-
-
-
-
-int tlvIsFullyParsed(TLV_t* tlv)
-{
-	TLV_t* tlvChild = NULL;
-	TLV_t* tlvNext = NULL;
-
-	uint32_t tlvSize = tlv->length;
-
-	if(tlv->type == Primitive)
-	{
-		return 1;
-	}
-	else
-	{
-		if(tlv->child != NULL)
-		{
-			tlvChild = tlv->child;
-		}
-	}
-
-
-
-
-	return 0;
-}
-
-
 int TLV_getNumSubTlvs(TLV_t* tlv)
 {
 	int count = 0;
@@ -355,13 +322,6 @@ int main(int argc, char* argv[])
 		printf("Cannot open file.");
 		return -1;
 	}
-
-	uint32_t sz;
-
-//	fseek(fp, 0L, SEEK_END);
-//	sz = ftell(fp);
-//	fseek(fp, 0L, SEEK_SET);
-
 
 	filebuffer = malloc(1024);
 	uint32_t bufsize = 1024;
