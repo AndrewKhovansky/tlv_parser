@@ -403,8 +403,11 @@ int main(int argc, char* argv[])
 		}
 
 
+
+
 		if(tlv_prev->type == Constructed)
 		{
+
 			if(tlv_prev->unparsed_data_size == 0)
 			{
 				tlv_prev->next = tlv;
@@ -428,6 +431,11 @@ int main(int argc, char* argv[])
 		tlv_prev = tlv;
 
 
+		if(tlv->length == 33)
+		{
+			sleep(0);
+		}
+
 		if(tlv->type == Primitive)
 		{
 			TLV_t* tp = tlv->parent;
@@ -442,12 +450,26 @@ int main(int argc, char* argv[])
 				if(tp->unparsed_data_size == 0)
 				{
 					tlv_prev = tp;
+
+					if(tp->parent)
+					{
+						tp->parent->unparsed_data_size -= (tp->length_size + tp->tag_size);
+					}
+
+
 				}
 
 
-				parsed_data += (tlv->length_size + tlv->tag_size);
+			//	parsed_data += (tlv->length_size + tlv->tag_size);
+
+			//	parsed_data += (tp->length_size + tp->tag_size);
+
 
 				tp = tp->parent;
+
+
+				if(!tp)
+					break;
 			}
 		}
 	}
