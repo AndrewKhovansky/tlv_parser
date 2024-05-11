@@ -14,7 +14,7 @@
 
 #define INDENTS_PER_LEVEL 2
 
-uint8_t* filebuffer;
+
 
 int readByteFromHexFile(FILE* fp, uint8_t* out)
 {
@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
 
 	ErrorBlock_t errb;
 
-
+	uint8_t* filebuffer;
 
 	if(argc < 2)
 	{
@@ -160,12 +160,17 @@ int main(int argc, char* argv[])
 		case ErrorInvalidSize:
 			printf("ERROR: Invalid TLV length. Binary offset: %lld\r\n", errb.offset);
 			break;
+		case ErrorNoFreeHeapSpace:
+			printf("ERROR: No heap space for TLV structure. Binary offset: %lld\r\n", errb.offset);
+			break;
 		default:
 			printf("ERROR. Unknown error. Binary offset: %lld\r\n", errb.offset);
 			break;
 		}
 
 		fflush(stdout);
+
+		free(filebuffer);
 
 		return -1;
 	}
@@ -314,6 +319,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	free(filebuffer);
 	TLV_deleteTree(tlv_head);
 
 	return 0;
