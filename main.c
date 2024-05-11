@@ -26,7 +26,7 @@ int readByteFromHexFile(FILE* fp, uint8_t* out)
 	char tmp;
 
 	if(!fp)
-		return -1;
+		return 1;
 
 	while( idx < 2 )
 	{
@@ -116,8 +116,8 @@ int main(int argc, char* argv[])
 
 	if(argc < 2)
 	{
-		printf("No file given.");
-		return -1;
+		printf("No file given.\r\n");
+		return 1;
 	}
 
 	filename = argv[1];
@@ -125,8 +125,9 @@ int main(int argc, char* argv[])
 
 	if(!fp)
 	{
-		printf("Cannot open file.");
-		return -1;
+		printf("Cannot open file.\r\n");
+		fflush(stdout);
+		return 1;
 	}
 
 
@@ -135,8 +136,9 @@ int main(int argc, char* argv[])
 
 	if(!filebuffer)
 	{
-		printf("Cannot parse HEX.");
-		return -1;
+		printf("Cannot parse HEX.\r\n");
+		fflush(stdout);
+		return 1;
 	}
 
 	tlv = TLV_createTreeFromBinaryBuffer(filebuffer, parsedSize, &errb);
@@ -163,6 +165,9 @@ int main(int argc, char* argv[])
 		case ErrorNoFreeHeapSpace:
 			printf("ERROR: No heap space for TLV structure. Binary offset: %lld\r\n", errb.offset);
 			break;
+		case ErrorUnexpectedEndOfBuffer:
+			printf("ERROR: Unexpected end of buffer. Binary offset: %lld\r\n", errb.offset);
+			break;
 		default:
 			printf("ERROR. Unknown error. Binary offset: %lld\r\n", errb.offset);
 			break;
@@ -172,7 +177,7 @@ int main(int argc, char* argv[])
 
 		free(filebuffer);
 
-		return -1;
+		return 1;
 	}
 
 

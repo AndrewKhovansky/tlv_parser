@@ -47,6 +47,13 @@ TLV_t* TLV_parseTlvFromBuffer(uint8_t* buf, uint64_t size, ErrorBlock_t* errbloc
 	rawcount = 0;
 	tag = buf[ bytesParsed++ ];
 
+	if((size - bytesParsed) == 0)
+	{
+		errblock->errorType = ErrorUnexpectedEndOfBuffer;
+		errblock->offset = (size-1);
+		return NULL;
+	}
+
 	tag_raw[rawcount++] = tag;
 
 	class  = (int)((tag >> 6) & 0x03);
@@ -71,6 +78,15 @@ TLV_t* TLV_parseTlvFromBuffer(uint8_t* buf, uint64_t size, ErrorBlock_t* errbloc
 	if((tag & 0x1F) <= 30) //For  0...30 tag is coded by one byte
 	{
 		id = (tag & 0x1F);
+
+		if((size - bytesParsed) == 0)
+		{
+			errblock->errorType = ErrorUnexpectedEndOfBuffer;
+			errblock->offset = (size-1);
+			return NULL;
+		}
+
+
 	}
 	else //For >=31 tag is coded by multiple bytes
 	{
@@ -80,6 +96,13 @@ TLV_t* TLV_parseTlvFromBuffer(uint8_t* buf, uint64_t size, ErrorBlock_t* errbloc
 		while(1)
 		{
 			tmp = buf[ bytesParsed++ ];
+
+			if((size - bytesParsed) == 0)
+			{
+				errblock->errorType = ErrorUnexpectedEndOfBuffer;
+				errblock->offset = (size-1);
+				return NULL;
+			}
 
 			tag_raw[rawcount++] = tmp;
 
@@ -128,10 +151,18 @@ TLV_t* TLV_parseTlvFromBuffer(uint8_t* buf, uint64_t size, ErrorBlock_t* errbloc
 			int bytes_to_read = (int)(tmp & 0x7F);
 
 
-			if(bytes_to_read > 7)
+			if(bytes_to_read > 8)
 			{
 				errblock->errorType = ErrorInvalidSize;
 				errblock->offset = (bytesParsed - 1);
+				return NULL;
+			}
+
+
+			if((size - bytesParsed) < bytes_to_read)
+			{
+				errblock->errorType = ErrorUnexpectedEndOfBuffer;
+				errblock->offset = (size - 1);
 				return NULL;
 			}
 
@@ -163,6 +194,15 @@ TLV_t* TLV_parseTlvFromBuffer(uint8_t* buf, uint64_t size, ErrorBlock_t* errbloc
 		}
 
 	}
+
+
+	if((size - bytesParsed) < length)
+	{
+		errblock->errorType = ErrorUnexpectedEndOfBuffer;
+		errblock->offset = (bytesParsed-1);
+		return NULL;
+	}
+
 
 	value = &buf[ bytesParsed ];
 

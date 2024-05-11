@@ -18,6 +18,7 @@ enum TLV_ErrorType
 	ErrorNoTrailingTLV,
 	ErrorNoFreeHeapSpace,
 	ErrorNothingToParse,
+	ErrorUnexpectedEndOfBuffer
 };
 
 typedef struct
