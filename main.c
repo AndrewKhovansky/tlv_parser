@@ -147,32 +147,33 @@ int main(int argc, char* argv[])
 		{
 		case ErrorPrimitiveIndefinite:
 			printf("ERROR: Indefinite length for primitive TLV. Binary offset: %lld\r\n", errb.offset);
-			fflush(stdout);
 			break;
 		case ErrorNoTrailingTLV:
 			printf("ERROR: No trailing TLV for indefinite length. Binary offset: %lld\r\n", errb.offset);
-			fflush(stdout);
 			break;
 		case ErrorInvalidClass:
 			printf("ERROR: Invalid TLV class. Binary offset: %lld\r\n", errb.offset);
-			fflush(stdout);
 			break;
 		case ErrorInvalidType:
 			printf("ERROR: Invalid TLV type. Binary offset: %lld\r\n", errb.offset);
-			fflush(stdout);
+			break;
+		case ErrorInvalidSize:
+			printf("ERROR: Invalid TLV length. Binary offset: %lld\r\n", errb.offset);
 			break;
 		default:
-			printf("ERROR. Unknown error.\r\n");
-			fflush(stdout);
+			printf("ERROR. Unknown error. Binary offset: %lld\r\n", errb.offset);
 			break;
 		}
+
+		fflush(stdout);
 
 		return -1;
 	}
 
+
 	int level  = 0;
 
-
+	//Variables for printing TLV numbers
 	int tlv_numbers[1024];
 	for(int i=0; i<sizeof(tlv_numbers)/sizeof(tlv_numbers[0]); ++i)
 	{
@@ -180,13 +181,13 @@ int main(int argc, char* argv[])
 	}
 
 	//Print out the TLV tree
+	TLV_t* tlv_head = tlv;
 	while(tlv)
 	{
 		char buffer[2048];
 		int len = 0;
 
-
-		len += sprintf(&buffer[len], "Tag #%d: ", tlv_numbers[level]);
+		len += sprintf(&buffer[len], "TLV #%d: ", tlv_numbers[level]);
 
 		switch(tlv->class)
 		{
@@ -284,7 +285,7 @@ int main(int argc, char* argv[])
 		{
 			tlv = tlv->next;
 
-			tlv_numbers[level]++;
+			tlv_numbers[level]++; //Increment Tag# counter
 		}
 		else	//No child or brother TLV. Move to next parent TLV
 		{
@@ -292,25 +293,30 @@ int main(int argc, char* argv[])
 			{
 				if(tlv->parent == NULL) //No parent? Exit.
 				{
-					return 0;
+					tlv = NULL;
+					break;
 				}
 
 				tlv = tlv->parent; //Select parent
 				level--;
 
-				if( !tlv->next ) //No more TLVs on this level? Go one level-up more
+				if( !tlv->next ) //No more TLVs on parent level? Go up one level more
 				{
 					continue;
 				}
 				else
 				{
 					tlv = tlv->next; //Select next TLV on level
-					tlv_numbers[level]++;
+					tlv_numbers[level]++; //Increment Tag# counter
 					break;
 				}
 			}
 		}
 	}
+
+	TLV_deleteTree(tlv_head);
+
+	return 0;
 
 }
 
