@@ -13,8 +13,8 @@ tlv_test: main.o tlv_parser.o
 	$(RM) -f *.o 
 
 main.o: main.c
-	$(CC) $(INCLUDES) $(INC_SOURCE) $(CFLAGS) -I$(TLV_INC_DIR) -c main.c -o main.o
+	$(CC) $(CFLAGS) -I$(TLV_INC_DIR) -c main.c -o main.o
     
 tlv_parser.o: $(TLV_SRC_FILE)
-	$(CC) $(CFLAGS) $(INC_SOURCE) -I$(TLV_INC_DIR) -c $(TLV_SRC_FILE) -o tlv_parser.o
+	$(CC) $(CFLAGS) -I$(TLV_INC_DIR) -c $(TLV_SRC_FILE) -o tlv_parser.o
 
