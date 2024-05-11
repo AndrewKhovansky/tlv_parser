@@ -10,71 +10,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
+#include <tlv_parser.h>
 
-enum TLV_Class
-{
-	Universal,
-	Application,
-	ContextSpecific,
-	Private
-};
+#define INDENTS_PER_LEVEL 2
 
-enum TLV_Type
-{
-	Primitive,
-	Constructed,
-	Terminator
-};
-
-enum TLV_LengthType
-{
-	Long,
-	Short,
-	Indefinite
-};
-
-
-
-struct TLV
-{
-	uint64_t length;
-	uint8_t* value;
-	uint64_t id;
-
-	uint32_t tag_size;
-	uint32_t length_size;
-	uint32_t subsequent_len;
-
-
-	//uint32_t level;
-
-	uint8_t tag_raw[10];
-	uint8_t length_raw[10];
-
-	uint32_t real_data_len;
-
-	uint32_t unparsed_data_size;
-
-	enum TLV_LengthType length_type;
-	enum TLV_Class class;
-	enum TLV_Type type;
-
-
-
-	struct TLV* parent;
-	struct TLV* child;
-	struct TLV* prev;
-	struct TLV* next;
-};
-
-typedef struct TLV TLV_t;
-
-
-
-TLV_t* TLV_create()
-{
-	return (TLV_t*)calloc(sizeof(TLV_t),1);
-}
+uint8_t* filebuffer;
 
 int readByteFromHexFile(FILE* fp, uint8_t* out)
 {
@@ -84,7 +25,6 @@ int readByteFromHexFile(FILE* fp, uint8_t* out)
 	int idx = 0;
 
 	char tmp;
-
 
 	if(!fp)
 		return -1;
@@ -119,232 +59,18 @@ int readByteFromHexFile(FILE* fp, uint8_t* out)
 }
 
 
-static uint8_t* ParseBuffer;
-
-void print_with_indent(int indent, char * string)
+uint8_t* createBinaryBufferFromHexFile(FILE* fp, size_t* parsedBinarySize)
 {
-    printf("%*s%s", indent, "", string);
-}
-
-enum TLV_ErrorType
-{
-	None,
-	ErrorInvalidClass,
-	ErrorInvalidType,
-	ErrorInvalidSize,
-	ErrorPrimitiveIndefinite,
-	ErrorNoTrailingTLV,
-};
-
-typedef struct
-{
-	uint32_t offset;
-	enum TLV_ErrorType errorType;
-}ErrorBlock_t;
-
-
-TLV_t* parseTlvFromBuffer(uint8_t* buf, uint32_t size, ErrorBlock_t* errblock)
-{
-	uint8_t tag;
-	uint64_t id;
-	uint64_t length = 0;
-
-	uint8_t* value;
-
-	uint8_t tag_raw[10];
-	uint8_t length_raw[10];
-
-	int rawcount = 0;
-
-	int length_type;
-	uint64_t length_size;
-	uint64_t tag_size;
-
-	uint8_t tmp;
-	uint32_t bytesParsed;
-
-	uint8_t class;
-	enum TLV_Type type;
-
-	bytesParsed = 0;
-
-	if(size == 0)
-	{
-		return NULL;
-	}
-
-	//Tag parsing
-	rawcount = 0;
-	tag = buf[ bytesParsed++ ];
-
-	tag_raw[rawcount++] = tag;
-
-	class  = (int)((tag >> 6) & 0x03);
-	type   = (int)((tag >> 5) & 0x01);
-
-	if((tag & 0x1F) <= 30)
-	{
-		id = (tag & 0x1F);
-	}
-	else
-	{
-		int offset = (63 - 7);
-		id = 0;
-
-		while(1)
-		{
-			tmp = buf[ bytesParsed++ ];
-
-			tag_raw[rawcount++] = tmp;
-
-			id |= ((uint64_t)tmp & 0x7F) << offset;
-			offset -= 7;
-
-			if((tmp & 0x80) == 0)
-				break;
-		}
-
-		id = id >> (offset + 7);
-	}
-
-	tag_size = bytesParsed;
-
-	//Length parsing
-	rawcount = 0;
-
-	tmp = buf[ bytesParsed++ ];
-
-	length_raw[rawcount++] = tmp;
-
-	if(tmp == 0x80) //Indefinite form
-	{
-		length_type = Indefinite;
-		length_size = 1;
-
-	/*	if(type == Primitive)
-		{
-			errblock->errorType = ErrorPrimitiveIndefinite;
-			errblock->offset = bytesParsed;
-			return NULL;
-		}*/
-	}
-	else	//Definite form
-	{
-		if((tmp & 0x80) == 0) //Short form
-		{
-			length = (tmp & 0x7F);
-			length_type = Short;
-
-			length_size = 1;
-		}
-		else	//Long form
-		{
-			int bytes_to_read = (int)(tmp & 0x7F);
-
-			length_type = Long;
-
-			uint32_t offset = (bytes_to_read - 1) * 8;
-
-			length = 0;
-			for(int i=0; i<bytes_to_read; ++i)
-			{
-				tmp = buf[ bytesParsed++ ];
-
-				length_raw[rawcount++] = tmp;
-
-				length |= ((uint64_t)tmp << offset);
-
-				offset -= 8;
-			}
-
-			length_size = bytes_to_read + 1;
-		}
-	}
-
-	value = &buf[ bytesParsed ];
-
-
-
-	if((type == Primitive) && (length_type == Indefinite))
-	{
-		errblock->errorType = ErrorPrimitiveIndefinite;
-		errblock->offset = bytesParsed;
-		return NULL;
-	}
-
-
-
-	TLV_t* tlv = TLV_create();
-
-	tlv->id = id;
-
-	if(length_type != Indefinite)
-		tlv->length = length;
-	else
-		tlv->length = UINT64_MAX;
-
-	tlv->value = value;
-	tlv->length_type = length_type;
-	tlv->class = class;
-	tlv->type = type;
-	tlv->tag_size = tag_size;
-	tlv->length_size = length_size;
-
-
-	memcpy(tlv->tag_raw, tag_raw, tag_size);
-	memcpy(tlv->length_raw, length_raw, length_size);
-
-	if(tlv->type == Primitive)
-	{
-		bytesParsed += tlv->length;
-	}
-
-	return tlv;
-}
-
-uint8_t* filebuffer;
-
-int TLV_getNumSubTlvs(TLV_t* tlv)
-{
-	int count = 0;
-
-
-	tlv = tlv->child;
-
-	while(tlv)
-	{
-		count++;
-		tlv = tlv->next;
-	}
-
-	return count;
-}
-
-
-
-int main(int argc, char* argv[])
-{
-	if(argc < 2)
-	{
-		printf("No file given.");
-		return -1;
-	}
-
-
-	char* filename = argv[1];
-
-	FILE* fp = fopen(filename,"rb");
-
-	if(!fp)
-	{
-		printf("Cannot open file.");
-		return -1;
-	}
-
-	filebuffer = malloc(1024);
+	uint8_t* filebuffer = malloc(1024);
 	uint32_t bufsize = 1024;
 
-	uint32_t parsedSize;
+	size_t parsedSize;
+
+	if( !filebuffer )
+	{
+		*parsedBinarySize = 0;
+		return NULL;
+	}
 
 	parsedSize = 0;
 	while( readByteFromHexFile(fp, &filebuffer[parsedSize]) == 0 )
@@ -355,174 +81,88 @@ int main(int argc, char* argv[])
 		{
 			bufsize += 1024;
 			filebuffer = realloc(filebuffer, bufsize);
-		}
 
+			if(!filebuffer)
+			{
+				*parsedBinarySize = 0;
+				return NULL;
+			}
+		}
 	}
 
-	fclose(fp);
+	*parsedBinarySize = parsedSize;
+	return filebuffer;
+}
 
 
-	TLV_t* tlv_prev = (TLV_t*)calloc(sizeof(TLV_t), 1);
+void print_with_indent(int indent, char * string)
+{
+    printf("%*s%s", indent, "", string);
+}
 
-	TLV_t* tlv_head = tlv_prev;
 
-	ParseBuffer = filebuffer;
 
-	uint8_t* parseBuffer = filebuffer;
-	uint32_t parseSize = parsedSize;
+int main(int argc, char* argv[])
+{
 
-	tlv_head = NULL;
-	tlv_prev = NULL;
+	char* filename;
+
+	FILE* fp;
+	size_t parsedSize;
 
 	TLV_t* tlv = NULL;
 
-	uint32_t offset = 0;
-
 	ErrorBlock_t errb;
 
-	//int offset = 0;
 
 
-	uint8_t* parseBufferBegin = parseBuffer;
-
-	errb.errorType = None;
-	while(1)
+	if(argc < 2)
 	{
-		tlv = parseTlvFromBuffer(parseBuffer, parseSize, &errb);
+		printf("No file given.");
+		return -1;
+	}
 
-		if(tlv == NULL)
-		{
-			if(errb.errorType == ErrorPrimitiveIndefinite)
-			{
-				printf("Indefinite length in primitive TLV. Binary offset: %d\r\n", (parseBuffer - parseBufferBegin));
-				fflush(stdout);
-				return -1;
-			}
+	filename = argv[1];
+	fp = fopen(filename,"rb");
 
-
-
-			if(tlv_prev->parent)
-			{
-				if(tlv_prev->parent->length_type == Indefinite)
-				{
-					printf("No trailing TLV. Binary offset: %d\r\n", (parseBuffer - parseBufferBegin));
-					fflush(stdout);
-					return -1;
-				}
-
-			}
-		}
-
-		if(tlv == NULL)
-			break;
-
-		offset = (tlv->length_size + tlv->tag_size);
-
-		if(tlv->type == Primitive)
-			offset += tlv->length;
-
-		parseBuffer += offset;
-		parseSize -= offset;
-
-
-		if(tlv->type == Constructed)
-		{
-			tlv->unparsed_data_size = tlv->length;
-		}
-
-		if(tlv_head == NULL)
-		{
-			tlv_head = tlv;
-			tlv_prev = tlv;
-			continue;
-		}
-
-		if(tlv_prev->type == Constructed)
-		{
-
-			if(tlv_prev->unparsed_data_size == 0)
-			{
-				tlv_prev->next = tlv;
-				tlv->prev = tlv_prev;
-
-
-				tlv->parent = tlv_prev->parent;
-			}
-			else
-			{
-				tlv_prev->child = tlv;
-				tlv->parent = tlv_prev;
-			}
-		}
-		else
-		{
-			tlv_prev->next = tlv;
-			tlv->prev = tlv_prev;
-
-			tlv->parent = tlv_prev->parent;
-		}
-
-		tlv_prev = tlv;
-
-		if(tlv->type == Primitive)
-		{
-			TLV_t* tp = tlv->parent;
-
-			uint32_t parsed_data = 0;
-
-			parsed_data = (tlv->length + tlv->length_size + tlv->tag_size);
-			while(tp)
-			{
-				if(tp->length_type != Indefinite)
-				{
-					tp->unparsed_data_size -= parsed_data;
-
-					if(tp->unparsed_data_size == 0)
-					{
-						tlv_prev = tp;
-
-						if(tp->parent)
-						{
-							tp->parent->unparsed_data_size -= (tp->length_size + tp->tag_size);
-						}
-					}
-
-					tp = tp->parent;
-				}
-				else
-				{
-					if((tlv->length == 0) && (tlv->id == 0))
-					{
-						tlv_prev = tp;
-
-						tp->unparsed_data_size = 0;
-
-						if(tp->parent)
-						{
-							if(tp->parent->length_type != Indefinite)
-							{
-								if(tp->parent->unparsed_data_size >= (tp->length_size + tp->tag_size))
-									tp->parent->unparsed_data_size -= (tp->length_size + tp->tag_size);
-							}
-						}
-
-						break;
-					}
-
-					tp = tp->parent;
-				}
-			}
-		}
+	if(!fp)
+	{
+		printf("Cannot open file.");
+		return -1;
 	}
 
 
+	filebuffer = createBinaryBufferFromHexFile(fp, &parsedSize);
+	fclose(fp);
 
-	tlv_prev = tlv_head;
+	if(!filebuffer)
+	{
+		printf("Cannot parse HEX.");
+		return -1;
+	}
 
-	tlv = NULL;
+	tlv = TLV_createTreeFromBinaryBuffer(filebuffer, parsedSize, &errb);
 
-	tlv = tlv_head;
+	if(tlv == NULL)
+	{
+		switch(errb.errorType)
+		{
+		case ErrorPrimitiveIndefinite:
+			printf("ERROR: Indefinite length in primitive TLV. Binary offset: %lld\r\n", errb.offset);
+			fflush(stdout);
+			break;
+		case ErrorNoTrailingTLV:
+			printf("ERROR: No trailing TLV for indefinite length. Binary offset: %lld\r\n", errb.offset);
+			fflush(stdout);
+			break;
+		default:
+			printf("ERROR. Unknown error.\r\n");
+			fflush(stdout);
+			break;
+		}
 
+		return -1;
+	}
 
 	int level  = 0;
 	while(tlv)
@@ -567,15 +207,14 @@ int main(int argc, char* argv[])
 
 		len += sprintf(&buffer[len], "ID: %d ", (int)tlv->id);
 
-
 		len += sprintf(&buffer[len], "[");
 		for(int i=0; i<tlv->tag_size; ++i)
 		{
-			len += sprintf(&buffer[len], "%x", tlv->tag_raw[i]);
+			len += sprintf(&buffer[len], "%02x", tlv->tag_raw[i]);
 		}
 		len += sprintf(&buffer[len], "]\r\n");
 
-		print_with_indent(level * 2, buffer);
+		print_with_indent(level * INDENTS_PER_LEVEL, buffer);
 
 		len = 0;
 
@@ -585,19 +224,18 @@ int main(int argc, char* argv[])
 			len += sprintf(&buffer[len], "Length: INDEFINITE ");
 			break;
 		default:
-			len += sprintf(&buffer[len], "Length: %u ", (uint32_t)tlv->length);
+			len += sprintf(&buffer[len], "Length: %lld ", tlv->length);
 			break;
 		}
 
 		len += sprintf(&buffer[len], "[");
 		for(int i=0; i<tlv->length_size; ++i)
 		{
-			len += sprintf(&buffer[len], "%x", tlv->length_raw[i]);
+			len += sprintf(&buffer[len], "%02x", tlv->length_raw[i]);
 		}
 		len += sprintf(&buffer[len], "]\r\n");
 
-		print_with_indent(level * 2, buffer);
-
+		print_with_indent(level * INDENTS_PER_LEVEL, buffer);
 
 		len = 0;
 
@@ -606,7 +244,7 @@ int main(int argc, char* argv[])
 			len += sprintf(&buffer[len], "Value: [");
 			for(int i=0; i<tlv->length; ++i)
 			{
-				len += sprintf(&buffer[len], "%x", tlv->value[i]);
+				len += sprintf(&buffer[len], "%02x", tlv->value[i]);
 			}
 			len += sprintf(&buffer[len], "]\r\n");
 		}
@@ -615,7 +253,7 @@ int main(int argc, char* argv[])
 			int sub_tlvs = TLV_getNumSubTlvs(tlv);
 			len += sprintf(&buffer[len], "Value: Constructed (%d TLVs)\r\n", sub_tlvs);
 		}
-		print_with_indent(level * 2, buffer);
+		print_with_indent(level * INDENTS_PER_LEVEL, buffer);
 
 		len = 0;
 
@@ -626,29 +264,29 @@ int main(int argc, char* argv[])
 			tlv = tlv->child;
 			level++;
 		}
-		else if(tlv->next != NULL)	//No child. Select next TLV on this level
+		else if(tlv->next != NULL)	//No child. Select brother TLV
 		{
 			tlv = tlv->next;
 		}
-		else	//No child or brother TLV. Select parent TLV
+		else	//No child or brother TLV. Move to next parent TLV
 		{
 			while(1)
 			{
-				if(tlv->parent == NULL)
+				if(tlv->parent == NULL) //No parent? Exit.
 				{
 					return 0;
 				}
 
-				tlv = tlv->parent;
+				tlv = tlv->parent; //Select parent
 				level--;
 
-				if( !tlv->next )
+				if( !tlv->next ) //No more TLVs on this level? Go one level-up more
 				{
 					continue;
 				}
 				else
 				{
-					tlv = tlv->next;
+					tlv = tlv->next; //Select next TLV on level
 					break;
 				}
 			}
