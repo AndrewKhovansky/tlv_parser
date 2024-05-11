@@ -7,11 +7,10 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
-#include <tlv_parser.h>
+#include "tlv_parser.h"
 
 #define INDENTS_PER_LEVEL 2
 
@@ -101,7 +100,6 @@ void print_with_indent(int indent, char * string)
 }
 
 
-
 int main(int argc, char* argv[])
 {
 
@@ -148,11 +146,19 @@ int main(int argc, char* argv[])
 		switch(errb.errorType)
 		{
 		case ErrorPrimitiveIndefinite:
-			printf("ERROR: Indefinite length in primitive TLV. Binary offset: %lld\r\n", errb.offset);
+			printf("ERROR: Indefinite length for primitive TLV. Binary offset: %lld\r\n", errb.offset);
 			fflush(stdout);
 			break;
 		case ErrorNoTrailingTLV:
 			printf("ERROR: No trailing TLV for indefinite length. Binary offset: %lld\r\n", errb.offset);
+			fflush(stdout);
+			break;
+		case ErrorInvalidClass:
+			printf("ERROR: Invalid TLV class. Binary offset: %lld\r\n", errb.offset);
+			fflush(stdout);
+			break;
+		case ErrorInvalidType:
+			printf("ERROR: Invalid TLV type. Binary offset: %lld\r\n", errb.offset);
 			fflush(stdout);
 			break;
 		default:
@@ -165,12 +171,22 @@ int main(int argc, char* argv[])
 	}
 
 	int level  = 0;
+
+
+	int tlv_numbers[1024];
+	for(int i=0; i<sizeof(tlv_numbers)/sizeof(tlv_numbers[0]); ++i)
+	{
+		tlv_numbers[i] = 1;
+	}
+
+	//Print out the TLV tree
 	while(tlv)
 	{
 		char buffer[2048];
 		int len = 0;
 
-		len += sprintf(&buffer[len], "Tag: ");
+
+		len += sprintf(&buffer[len], "Tag #%d: ", tlv_numbers[level]);
 
 		switch(tlv->class)
 		{
@@ -221,10 +237,10 @@ int main(int argc, char* argv[])
 		switch(tlv->length_type)
 		{
 		case Indefinite:
-			len += sprintf(&buffer[len], "Length: INDEFINITE ");
+			len += sprintf(&buffer[len], " Length: INDEFINITE ");
 			break;
 		default:
-			len += sprintf(&buffer[len], "Length: %lld ", tlv->length);
+			len += sprintf(&buffer[len], " Length: %lld ", tlv->length);
 			break;
 		}
 
@@ -241,7 +257,7 @@ int main(int argc, char* argv[])
 
 		if(tlv->type == Primitive)
 		{
-			len += sprintf(&buffer[len], "Value: [");
+			len += sprintf(&buffer[len], " Value: [");
 			for(int i=0; i<tlv->length; ++i)
 			{
 				len += sprintf(&buffer[len], "%02x", tlv->value[i]);
@@ -251,7 +267,7 @@ int main(int argc, char* argv[])
 		else
 		{
 			int sub_tlvs = TLV_getNumSubTlvs(tlv);
-			len += sprintf(&buffer[len], "Value: Constructed (%d TLVs)\r\n", sub_tlvs);
+			len += sprintf(&buffer[len], " Value: Constructed (%d TLVs)\r\n", sub_tlvs);
 		}
 		print_with_indent(level * INDENTS_PER_LEVEL, buffer);
 
@@ -267,6 +283,8 @@ int main(int argc, char* argv[])
 		else if(tlv->next != NULL)	//No child. Select brother TLV
 		{
 			tlv = tlv->next;
+
+			tlv_numbers[level]++;
 		}
 		else	//No child or brother TLV. Move to next parent TLV
 		{
@@ -287,6 +305,7 @@ int main(int argc, char* argv[])
 				else
 				{
 					tlv = tlv->next; //Select next TLV on level
+					tlv_numbers[level]++;
 					break;
 				}
 			}
