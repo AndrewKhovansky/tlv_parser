@@ -199,6 +199,14 @@ int main(int argc, char* argv[])
 
 		len += sprintf(&buffer[len], "TLV #%d: ", tlv_numbers[level]);
 
+
+
+		if(tlv->type == Constructed)
+		{
+			tlv_numbers[level+1] = 1;
+		}
+
+
 		switch(tlv->class)
 		{
 		case Universal:
@@ -322,6 +330,10 @@ int main(int argc, char* argv[])
 				}
 			}
 		}
+
+
+
+
 	}
 
 	free(filebuffer);

@@ -407,8 +407,8 @@ TLV_t* TLV_createTreeFromBinaryBuffer(uint8_t* parseBufferBegin, size_t parseSiz
 
 						if(tlv_parent->parent)
 						{
-							//TLV is full (no unparsed data), so his header size is subtracted from upper level TLV
-							tlv_parent->parent->unparsed_data_size -= (tlv_parent->length_size + tlv_parent->tag_size);
+							//TLV is full (no unparsed data), so its header size is also subtracted from all upper level TLVs
+							parsed_data += (tlv_parent->length_size + tlv_parent->tag_size);
 						}
 					}
 
